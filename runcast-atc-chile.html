@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>RUNCAST · Sistema Operacional ATC Chile</title>
+<style>
+  :root{
+    /* Phosphor control-room palette, grounded in radar/ATIS displays */
+    --void:#070b0e;
+    --panel:#0d1419;
+    --panel-2:#111c22;
+    --panel-3:#16242c;
+    --line:#1f333c;
+    --line-soft:#172a31;
+    --ink:#d6e4e8;
+    --ink-dim:#6f8893;
+    --ink-faint:#48606a;
+    --phos:#3ff0a8;        /* primary phosphor green */
+    --phos-deep:#0d3a28;
+    --amber:#ffb454;       /* caution / change */
+    --amber-deep:#7a4e16;
+    --red:#ff5e6c;
+    --sky:#5cc8ff;
+    --violet:#9d8cff;
+    --glow:0 0 0.5px rgba(63,240,168,.6), 0 0 14px rgba(63,240,168,.18);
+    --mono:'JetBrains Mono','SF Mono',ui-monospace,'Cascadia Code',Menlo,Consolas,monospace;
+    --sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1200px 700px at 80% -10%, rgba(63,240,168,.05), transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, rgba(92,200,255,.04), transparent 55%),
+      var(--void);
+    color:var(--ink);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+  /* faint scanline atmosphere */
+  body::after{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:9999;
+    background:repeating-linear-gradient(to bottom, rgba(255,255,255,.012) 0 1px, transparent 1px 3px);
+    mix-blend-mode:overlay;opacity:.6;
+  }
+  #root{height:100vh;height:100dvh;display:flex;flex-direction:column}
+
+  /* ---------- type ---------- */
+  .mono{font-family:var(--mono)}
+  .eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-faint)}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+
+  /* ---------- scrollbars ---------- */
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:0}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    display:flex;align-items:stretch;gap:0;height:54px;flex:0 0 auto;
+    border-bottom:1px solid var(--line);background:linear-gradient(180deg,var(--panel-2),var(--panel));
+    z-index:40;
+  }
+  .brand{display:flex;align-items:center;gap:11px;padding:0 18px;border-right:1px solid var(--line);min-width:220px}
+  .brand .glyph{width:24px;height:24px;flex:0 0 auto;filter:drop-shadow(var(--glow))}
+  .brand b{font-family:var(--mono);font-weight:800;letter-spacing:.14em;font-size:15px;color:var(--phos);text-shadow:var(--glow)}
+  .brand small{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.18em;color:var(--ink-faint);margin-top:2px}
+
+  .nav{display:flex;align-items:stretch}
+  .nav button{
+    background:none;border:none;border-right:1px solid var(--line-soft);color:var(--ink-dim);
+    font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    padding:0 17px;cursor:pointer;position:relative;transition:.15s;
+  }
+  .nav button:hover{color:var(--ink);background:rgba(63,240,168,.04)}
+  .nav button.on{color:var(--phos);background:rgba(63,240,168,.06)}
+  .nav button.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--phos);box-shadow:var(--glow)}
+  .nav button .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--amber);margin-left:7px;vertical-align:middle;box-shadow:0 0 8px var(--amber);animation:pulse 1.1s infinite}
+
+  .clock{margin-left:auto;display:flex;align-items:center;gap:16px;padding:0 16px;border-left:1px solid var(--line)}
+  .clock .z{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--ink);letter-spacing:.06em}
+  .clock .z .zz{color:var(--phos)}
+  .clock .lbl{font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:var(--ink-faint);text-align:right}
+  .who{display:flex;align-items:center;gap:10px;padding:0 16px;border-left:1px solid var(--line);cursor:pointer}
+  .who .av{width:30px;height:30px;border:1px solid var(--phos);display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:12px;color:var(--phos)}
+  .who .meta{font-family:var(--mono);font-size:10px;line-height:1.5}
+  .who .meta b{color:var(--ink);font-size:11px}
+  .who .meta span{color:var(--ink-faint)}
+
+  /* ---------- body layout ---------- */
+  .stage{flex:1 1 auto;display:flex;min-height:0}
+  .rail{
+    width:218px;flex:0 0 auto;border-right:1px solid var(--line);background:var(--panel);
+    display:flex;flex-direction:column;overflow-y:auto;
+  }
+  .rail .sec{padding:14px 16px 8px;border-bottom:1px solid var(--line-soft)}
+  .rail .sec .eyebrow{margin-bottom:9px}
+  .unitcard{padding:11px 13px;border:1px solid var(--line);background:var(--panel-2);margin-bottom:8px}
+  .unitcard .code{font-family:var(--mono);font-weight:700;font-size:13px;color:var(--phos);letter-spacing:.08em}
+  .unitcard .nm{font-size:11px;color:var(--ink-dim);margin-top:2px}
+  .railnav{display:flex;flex-direction:column;padding:8px 0}
+  .railnav button{
+    display:flex;align-items:center;gap:11px;background:none;border:none;color:var(--ink-dim);
+    font-family:var(--mono);font-size:11.5px;letter-spacing:.04em;padding:11px 16px;cursor:pointer;
+    text-align:left;border-left:2px solid transparent;transition:.14s;
+  }
+  .railnav button:hover{color:var(--ink);background:rgba(255,255,255,.02)}
+  .railnav button.on{color:var(--phos);border-left-color:var(--phos);background:rgba(63,240,168,.05)}
+  .railnav button svg{width:15px;height:15px;flex:0 0 auto;opacity:.85}
+  .railnav .badge{margin-left:auto;font-size:9px;font-family:var(--mono);background:var(--amber);color:#1a1205;padding:1px 6px;font-weight:700;border-radius:2px}
+
+  .content{flex:1 1 auto;overflow-y:auto;padding:0;min-width:0;position:relative}
+
+  /* ---------- generic panel ---------- */
+  .panel{border:1px solid var(--line);background:var(--panel);}
+  .phead{display:flex;align-items:center;gap:10px;padding:11px 15px;border-bottom:1px solid var(--line);background:var(--panel-2)}
+  .phead h3{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink);font-weight:700}
+  .phead .sub{font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-left:auto;letter-spacing:.1em}
+
+  /* ---------- status strip ---------- */
+  .strip{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line);background:var(--panel)}
+  .strip .cell{padding:14px 18px;border-right:1px solid var(--line-soft)}
+  .strip .cell:last-child{border-right:none}
+  .strip .cell .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;color:var(--ink-faint);text-transform:uppercase}
+  .strip .cell .v{font-family:var(--mono);font-size:28px;font-weight:800;margin-top:6px;line-height:1;color:var(--ink)}
+  .strip .cell .v.g{color:var(--phos);text-shadow:var(--glow)}
+  .strip .cell .v.a{color:var(--amber)}
+  .strip .cell .v small{font-size:13px;color:var(--ink-dim);font-weight:600}
+
+  /* ---------- airport grid ---------- */
+  .gridwrap{padding:18px}
+  .toolbar{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+  .search{flex:1 1 240px;display:flex;align-items:center;gap:9px;border:1px solid var(--line);background:var(--panel-2);padding:9px 13px;min-width:200px}
+  .search input{background:none;border:none;outline:none;color:var(--ink);font-family:var(--mono);font-size:12px;width:100%}
+  .search svg{width:14px;height:14px;color:var(--ink-faint)}
+  .filterbtn{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;padding:9px 13px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-dim);cursor:pointer;transition:.14s}
+  .filterbtn:hover{color:var(--ink);border-color:var(--ink-faint)}
+  .filterbtn.on{color:var(--phos);border-color:var(--phos);background:rgba(63,240,168,.06)}
+
+  .apgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+
+  .apcard{border:1px solid var(--line);background:linear-gradient(180deg,var(--panel-2),var(--panel));position:relative;overflow:hidden}
+  .apcard .crest{display:flex;align-items:flex-start;gap:12px;padding:14px 15px;border-bottom:1px solid var(--line-soft)}
+  .apcard .icao{font-family:var(--mono);font-weight:800;font-size:22px;letter-spacing:.05em;color:var(--phos);text-shadow:var(--glow);line-height:1}
+  .apcard .nm{font-size:12px;color:var(--ink);font-weight:600;margin-top:5px}
+  .apcard .city{font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-top:2px;letter-spacing:.06em}
+  .apcard .owntag{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--ink-faint);text-align:right;line-height:1.5}
+  .apcard .owntag b{color:var(--sky);display:block}
+
+  .opfields{display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid var(--line-soft)}
+  .opf{padding:12px 13px;border-right:1px solid var(--line-soft);position:relative}
+  .opf:last-child{border-right:none}
+  .opf .k{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--ink-faint);text-transform:uppercase}
+  .opf .val{font-family:var(--mono);font-size:19px;font-weight:800;color:var(--ink);margin-top:7px;line-height:1;letter-spacing:.02em}
+  .opf .val.empty{color:var(--ink-faint);font-weight:500;font-size:14px}
+
+  /* blink signalling */
+  @keyframes flashfield{
+    0%,100%{background:transparent}
+    50%{background:rgba(255,180,84,.22)}
+  }
+  @keyframes flashborder{
+    0%,100%{box-shadow:inset 0 0 0 1px transparent}
+    50%{box-shadow:inset 0 0 0 2px var(--amber)}
+  }
+  .opf.changed{animation:flashfield 1s ease-in-out infinite}
+  .opf.changed .val{color:var(--amber);text-shadow:0 0 10px rgba(255,180,84,.4)}
+  .opf.changed::after{content:"▲ UPD";position:absolute;top:8px;right:9px;font-family:var(--mono);font-size:7.5px;letter-spacing:.1em;color:var(--amber)}
+  .apcard.changed{animation:flashborder 1s ease-in-out infinite}
+
+  .apfoot{display:flex;align-items:center;gap:10px;padding:9px 13px;border-top:1px solid var(--line-soft);background:rgba(0,0,0,.18)}
+  .apfoot .age{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);letter-spacing:.06em}
+  .apfoot .by{font-family:var(--mono);font-size:9.5px;color:var(--ink-dim);margin-left:auto}
+  .apfoot .editlink{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--phos);cursor:pointer;text-transform:uppercase;border:1px solid var(--line);padding:4px 9px}
+  .apfoot .editlink:hover{background:rgba(63,240,168,.08)}
+  .apfoot .editlink.locked{color:var(--ink-faint);cursor:not-allowed;border-color:var(--line-soft)}
+
+  .metarline{padding:9px 13px;border-top:1px solid var(--line-soft);font-family:var(--mono);font-size:10.5px;color:var(--ink-dim);letter-spacing:.02em;line-height:1.5;word-break:break-word;display:flex;gap:8px;align-items:baseline}
+  .metarline .fr{flex:0 0 auto;font-weight:700;padding:1px 6px;font-size:9px;letter-spacing:.08em}
+  .fr.VFR{color:var(--phos);border:1px solid var(--phos)}
+  .fr.MVFR{color:var(--sky);border:1px solid var(--sky)}
+  .fr.IFR{color:var(--amber);border:1px solid var(--amber)}
+  .fr.LIFR{color:var(--red);border:1px solid var(--red)}
+
+  /* ---------- pills ---------- */
+  .pill{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border:1px solid;font-weight:700;white-space:nowrap}
+  .pill.ok{color:var(--phos);border-color:var(--phos)}
+  .pill.warn{color:var(--amber);border-color:var(--amber)}
+  .pill.off{color:var(--ink-faint);border-color:var(--line)}
+
+  /* ---------- editor drawer ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(2,5,7,.72);backdrop-filter:blur(3px);z-index:80;display:flex;justify-content:flex-end;animation:fade .2s}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  @keyframes slidein{from{transform:translateX(30px);opacity:.4}to{transform:translateX(0);opacity:1}}
+  .drawer{width:min(480px,100%);height:100%;background:var(--panel);border-left:1px solid var(--phos);box-shadow:-30px 0 60px rgba(0,0,0,.5);display:flex;flex-direction:column;animation:slidein .22s}
+  .drawer .dhead{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
+  .drawer .dhead .icao{font-family:var(--mono);font-weight:800;font-size:24px;color:var(--phos);text-shadow:var(--glow)}
+  .drawer .dhead .x{margin-left:auto;background:none;border:1px solid var(--line);color:var(--ink-dim);width:32px;height:32px;cursor:pointer;font-size:16px}
+  .drawer .x:hover{color:var(--ink);border-color:var(--ink-faint)}
+  .dbody{flex:1;overflow-y:auto;padding:20px}
+  .field{margin-bottom:18px}
+  .field label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:8px}
+  .field label .hint{color:var(--ink-faint);text-transform:none;letter-spacing:0;font-size:9.5px;float:right}
+  .field input,.field select,.field textarea{
+    width:100%;background:var(--void);border:1px solid var(--line);color:var(--phos);
+    font-family:var(--mono);font-size:16px;font-weight:700;padding:11px 13px;outline:none;letter-spacing:.04em;
+  }
+  .field textarea{font-weight:500;font-size:12px;color:var(--ink);min-height:64px;resize:vertical}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--phos);box-shadow:0 0 0 1px var(--phos)}
+  .seg{display:flex;flex-wrap:wrap;gap:7px}
+  .seg button{flex:0 0 auto;font-family:var(--mono);font-size:13px;font-weight:700;padding:9px 13px;border:1px solid var(--line);background:var(--void);color:var(--ink-dim);cursor:pointer;transition:.13s}
+  .seg button:hover{color:var(--ink);border-color:var(--ink-faint)}
+  .seg button.on{color:var(--void);background:var(--phos);border-color:var(--phos)}
+  .dfoot{padding:16px 20px;border-top:1px solid var(--line);display:flex;gap:10px}
+  .btn{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;padding:12px 18px;cursor:pointer;border:1px solid;transition:.14s}
+  .btn.primary{background:var(--phos);border-color:var(--phos);color:var(--void)}
+  .btn.primary:hover{box-shadow:var(--glow)}
+  .btn.ghost{background:none;border-color:var(--line);color:var(--ink-dim)}
+  .btn.ghost:hover{color:var(--ink);border-color:var(--ink-faint)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .diffbox{border:1px solid var(--amber-deep);background:rgba(255,180,84,.06);padding:12px 14px;margin-bottom:18px}
+  .diffbox .dl{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--amber);text-transform:uppercase;margin-bottom:8px}
+  .diffrow{font-family:var(--mono);font-size:11px;color:var(--ink-dim);display:flex;gap:8px;padding:3px 0}
+  .diffrow b{color:var(--ink-faint);min-width:64px}
+  .diffrow .from{color:var(--ink-faint);text-decoration:line-through}
+  .diffrow .to{color:var(--phos);font-weight:700}
+
+  /* ---------- feed / log ---------- */
+  .feed{padding:18px;display:flex;flex-direction:column;gap:0}
+  .levt{display:flex;gap:13px;padding:13px 0;border-bottom:1px solid var(--line-soft)}
+  .levt .tk{font-family:var(--mono);font-size:10px;color:var(--ink-faint);min-width:74px;letter-spacing:.04em;padding-top:2px}
+  .levt .marker{width:9px;flex:0 0 auto;display:flex;justify-content:center;padding-top:5px}
+  .levt .marker i{width:7px;height:7px;border-radius:50%;display:block}
+  .levt.upd .marker i{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+  .levt.usr .marker i{background:var(--sky)}
+  .levt.sys .marker i{background:var(--ink-faint)}
+  .levt .body{flex:1}
+  .levt .body .ttl{font-family:var(--mono);font-size:12px;color:var(--ink);font-weight:600}
+  .levt .body .ttl b{color:var(--phos)}
+  .levt .body .det{font-family:var(--mono);font-size:11px;color:var(--ink-dim);margin-top:3px;line-height:1.5}
+  .levt .body .det .chg{color:var(--amber);font-weight:700}
+  .levt .body .who2{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);margin-top:5px;letter-spacing:.06em}
+
+  /* ---------- briefing ---------- */
+  .brief{padding:18px;display:grid;grid-template-columns:1fr;gap:14px;max-width:980px}
+  .brsec{border:1px solid var(--line);background:var(--panel)}
+  .brsec .bh{padding:12px 15px;border-bottom:1px solid var(--line);background:var(--panel-2);display:flex;align-items:center;gap:10px}
+  .brsec .bh h4{font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink)}
+  .brsec .bh .n{font-family:var(--mono);font-size:11px;color:var(--phos);font-weight:700;border:1px solid var(--line);width:22px;height:22px;display:grid;place-items:center}
+  .brsec .bc{padding:15px}
+  .brrow{display:flex;gap:12px;padding:10px 0;border-bottom:1px dashed var(--line-soft);font-family:var(--mono);font-size:12px;align-items:baseline}
+  .brrow:last-child{border-bottom:none}
+  .brrow .ic{color:var(--phos);font-weight:800;min-width:54px}
+  .brrow .tx{color:var(--ink-dim);line-height:1.5}
+  .brrow .tx b{color:var(--ink)}
+  .brrow .tg{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--amber);border:1px solid var(--amber-deep);padding:2px 7px;letter-spacing:.08em}
+  .handoff{display:flex;gap:14px;flex-wrap:wrap}
+  .signbox{flex:1 1 200px;border:1px dashed var(--line);padding:14px;text-align:center}
+  .signbox .role{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--ink-faint);text-transform:uppercase}
+  .signbox .nm{font-family:var(--mono);font-size:14px;color:var(--ink);margin-top:8px;font-weight:700}
+  .signbox .st{font-family:var(--mono);font-size:10px;margin-top:8px}
+  .signbox .st.signed{color:var(--phos)}
+  .signbox .st.pending{color:var(--amber)}
+  .signbtn{margin-top:10px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;padding:7px 12px;border:1px solid var(--phos);color:var(--phos);background:none;cursor:pointer;text-transform:uppercase}
+  .signbtn:hover{background:rgba(63,240,168,.08)}
+
+  /* ---------- login ---------- */
+  .login{position:fixed;inset:0;z-index:200;display:grid;place-items:center;
+    background:radial-gradient(900px 600px at 50% 20%, rgba(63,240,168,.06), transparent 60%),var(--void)}
+  .loginbox{width:min(420px,92vw);border:1px solid var(--line);background:var(--panel)}
+  .loginbox .lh{padding:26px 26px 18px;border-bottom:1px solid var(--line);text-align:center}
+  .loginbox .lh .glyph{width:46px;height:46px;margin:0 auto 14px;filter:drop-shadow(var(--glow))}
+  .loginbox .lh b{font-family:var(--mono);font-weight:800;font-size:22px;letter-spacing:.18em;color:var(--phos);text-shadow:var(--glow);display:block}
+  .loginbox .lh small{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--ink-faint);display:block;margin-top:6px}
+  .loginbox .lb{padding:22px 26px 26px}
+  .loginbox .lb .lead{font-family:var(--mono);font-size:11px;color:var(--ink-dim);text-align:center;margin-bottom:18px;letter-spacing:.04em}
+  .unitsel{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
+  .unitsel button{display:flex;align-items:center;gap:12px;text-align:left;padding:12px 14px;border:1px solid var(--line);background:var(--panel-2);cursor:pointer;transition:.14s}
+  .unitsel button:hover{border-color:var(--ink-faint)}
+  .unitsel button.on{border-color:var(--phos);background:rgba(63,240,168,.06)}
+  .unitsel button .uc{font-family:var(--mono);font-weight:700;color:var(--phos);font-size:13px;min-width:60px}
+  .unitsel button .un{font-family:var(--mono);font-size:10.5px;color:var(--ink-dim)}
+  .loginbox .lb .role-in{margin-bottom:16px}
+
+  .empty{padding:60px 20px;text-align:center;font-family:var(--mono);color:var(--ink-faint);font-size:12px;letter-spacing:.06em}
+
+  /* ---------- toast ---------- */
+  .toasts{position:fixed;bottom:46px;left:50%;transform:translateX(-50%);z-index:120;display:flex;flex-direction:column;gap:8px;align-items:center}
+  .toast{font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:11px 18px;border:1px solid var(--phos);background:var(--panel);color:var(--ink);box-shadow:var(--glow);animation:slidein .25s;display:flex;gap:10px;align-items:center}
+  .toast.warn{border-color:var(--amber);color:var(--amber)}
+  .toast b{color:var(--phos)}
+
+  /* ---------- status footer ---------- */
+  .footer{flex:0 0 auto;height:34px;border-top:1px solid var(--line);background:var(--panel-2);display:flex;align-items:center;gap:0;font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--ink-faint)}
+  .footer .fi{padding:0 15px;border-right:1px solid var(--line-soft);height:100%;display:flex;align-items:center;gap:8px}
+  .footer .fi b{color:var(--phos)}
+  .footer .live{width:7px;height:7px;border-radius:50%;background:var(--phos);box-shadow:0 0 8px var(--phos);animation:pulse 1.4s infinite}
+  .footer .right{margin-left:auto;display:flex;align-items:center;height:100%}
+
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  /* ---------- mobile ---------- */
+  .mtab{display:none}
+  @media (max-width:860px){
+    .rail{display:none}
+    .nav{display:none}
+    .clock .lbl{display:none}
+    .brand{min-width:0;padding:0 14px}
+    .who .meta{display:none}
+    .strip{grid-template-columns:repeat(2,1fr)}
+    .strip .cell:nth-child(2n){border-right:none}
+    .apgrid{grid-template-columns:1fr}
+    .opfields{grid-template-columns:1fr 1fr 1fr}
+    .content{padding-bottom:58px}
+    .mtab{display:flex;position:fixed;bottom:0;left:0;right:0;height:56px;z-index:60;
+      background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+    .mtab button{flex:1;background:none;border:none;color:var(--ink-faint);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;cursor:pointer;position:relative}
+    .mtab button svg{width:18px;height:18px}
+    .mtab button.on{color:var(--phos)}
+    .mtab button .dot{position:absolute;top:8px;right:50%;margin-right:-16px;width:6px;height:6px;border-radius:50%;background:var(--amber);box-shadow:0 0 6px var(--amber)}
+    .drawer{width:100%}
+    .footer{display:none}
+    .gridwrap,.feed,.brief{padding:13px}
+    .toasts{bottom:70px}
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback} = React;
+const h = React.createElement;
+
+/* ============================================================
+   SEED DATA — unidades ATC y aeropuertos de Chile
+   ============================================================ */
+const UNITS = [
+  {code:'SCEL-TWR', name:'Santiago / A. Merino Benítez — Torre', region:'Central'},
+  {code:'SCEL-APP', name:'Santiago — Aproximación', region:'Central'},
+  {code:'SCDA-TWR', name:'Iquique / Diego Aracena — Torre', region:'Norte'},
+  {code:'SCFA-TWR', name:'Antofagasta / Cerro Moreno — Torre', region:'Norte'},
+  {code:'SCIE-TWR', name:'Concepción / Carriel Sur — Torre', region:'Sur'},
+  {code:'SCTE-TWR', name:'Puerto Montt / El Tepual — Torre', region:'Sur'},
+  {code:'SCCI-TWR', name:'Punta Arenas / C. Ibáñez — Torre', region:'Austral'},
+  {code:'ACC-SANTIAGO', name:'Centro de Control de Área Santiago', region:'Nacional'},
+];
+
+const AIRPORTS = [
+  {icao:'SCEL', city:'Santiago', name:'A. Merino Benítez', owner:'SCEL-TWR',
+   rwys:['17L','17R','35L','35R'], stars:['DOSO1A','IMLA2B','MORLA1C','TANGO3A'], apps:['ILS Z 17L','ILS Y 17R','RNP 35L','VOR 17R'],
+   rwy:'17L', star:'DOSO1A', app:'ILS Z 17L'},
+  {icao:'SCDA', city:'Iquique', name:'Diego Aracena', owner:'SCDA-TWR',
+   rwys:['06','24'], stars:['UNGO1A','VITER2B'], apps:['ILS 06','RNP 24','VOR 06'],
+   rwy:'06', star:'UNGO1A', app:'ILS 06'},
+  {icao:'SCFA', city:'Antofagasta', name:'Cerro Moreno', owner:'SCFA-TWR',
+   rwys:['01','19'], stars:['MORNO1A','ASTOR2C'], apps:['ILS 19','RNP 01','VOR 19'],
+   rwy:'19', star:'MORNO1A', app:'ILS 19'},
+  {icao:'SCIE', city:'Concepción', name:'Carriel Sur', owner:'SCIE-TWR',
+   rwys:['02','20'], stars:['CARSU1A','BIOBI2B'], apps:['ILS 20','RNP 02','VOR 20'],
+   rwy:'20', star:'CARSU1A', app:'ILS 20'},
+  {icao:'SCTE', city:'Puerto Montt', name:'El Tepual', owner:'SCTE-TWR',
+   rwys:['07','17','25','35'], stars:['TEPUL1A','LLANQ2B'], apps:['ILS 17','RNP 35','VOR 25'],
+   rwy:'17', star:'TEPUL1A', app:'ILS 17'},
+  {icao:'SCCI', city:'Punta Arenas', name:'Presidente C. Ibáñez', owner:'SCCI-TWR',
+   rwys:['07','12','25','30'], stars:['MAGAL1A','STREE2B'], apps:['ILS 07','RNP 25','VOR 12'],
+   rwy:'07', star:'MAGAL1A', app:'ILS 07'},
+];
+
+/* synthetic METARs (would be a live AWC/DMC feed in production) */
+const METARS = {
+  SCEL:{raw:'SCEL 232300Z 21012KT 9999 FEW035 SCT080 14/06 Q1018 NOSIG', cat:'VFR'},
+  SCDA:{raw:'SCDA 232300Z 19008KT CAVOK 19/13 Q1013 NOSIG', cat:'VFR'},
+  SCFA:{raw:'SCFA 232300Z 22014KT 9999 SCT020 17/11 Q1014', cat:'VFR'},
+  SCIE:{raw:'SCIE 232300Z 27018KT 8000 -RA BKN012 OVC030 11/09 Q1006', cat:'MVFR'},
+  SCTE:{raw:'SCTE 232300Z 29022G34KT 4000 RA BKN006 OVC015 09/08 Q0998', cat:'IFR'},
+  SCCI:{raw:'SCCI 232300Z 30028G45KT 2500 +RADZ OVC004 06/05 Q0991', cat:'LIFR'},
+};
+
+/* ============================================================
+   ICONS
+   ============================================================ */
+const Ic = {
+  tower:(p)=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,...p},
+    h('path',{d:'M12 2v20M7 7l10 10M17 7L7 17M5 22h14'})),
+  map:(p)=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,...p},
+    h('path',{d:'M9 3 3 5v16l6-2 6 2 6-2V3l-6 2-6-2zM9 3v16M15 5v16'})),
+  notam:(p)=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,...p},
+    h('path',{d:'M12 2 2 20h20L12 2zM12 9v5M12 17h.01'})),
+  log:(p)=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,...p},
+    h('path',{d:'M4 4h16v16H4zM8 9h8M8 13h8M8 17h5'})),
+  brief:(p)=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,...p},
+    h('path',{d:'M4 6h16v12H4zM4 10h16M9 6V4h6v2'})),
+  search:(p)=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.8,...p},
+    h('circle',{cx:11,cy:11,r:7}),h('path',{d:'m21 21-4.3-4.3'})),
+};
+
+const GLYPH = h('svg',{className:'glyph',viewBox:'0 0 48 48',fill:'none'},
+  h('circle',{cx:24,cy:24,r:21,stroke:'var(--phos)',strokeWidth:1.5,opacity:.4}),
+  h('circle',{cx:24,cy:24,r:13,stroke:'var(--phos)',strokeWidth:1.5,opacity:.6}),
+  h('path',{d:'M24 3v42M3 24h42',stroke:'var(--phos)',strokeWidth:1,opacity:.35}),
+  h('path',{d:'M24 24 38 13',stroke:'var(--phos)',strokeWidth:2.2,strokeLinecap:'round'}),
+  h('circle',{cx:24,cy:24,r:2.5,fill:'var(--phos)'}));
+
+/* ============================================================
+   STORAGE LAYER (persistent, shared across "units"/sessions)
+   ============================================================ */
+const SKEY='runcast:state:v1';
+async function loadState(){
+  try{ const r=await window.storage.get(SKEY,true); return r&&r.value?JSON.parse(r.value):null;}catch(e){return null;}
+}
+async function saveState(s){
+  try{ await window.storage.set(SKEY, JSON.stringify(s), true);}catch(e){}
+}
+
+function nowZ(){const d=new Date();const p=n=>String(n).padStart(2,'0');return p(d.getUTCHours())+p(d.getUTCMinutes())+p(d.getUTCSeconds())+'Z';}
+function clockZ(){const d=new Date();const p=n=>String(n).padStart(2,'0');return {hms:p(d.getUTCHours())+':'+p(d.getUTCMinutes())+':'+p(d.getUTCSeconds())};}
+function ageMin(ts){if(!ts)return '—';const m=Math.floor((Date.now()-ts)/60000);if(m<1)return 'hace <1 min';if(m<60)return 'hace '+m+' min';return 'hace '+Math.floor(m/60)+'h '+(m%60)+'m';}
+
+/* ============================================================
+   APP
+   ============================================================ */
+function App(){
+  const [user,setUser]=useState(null);
+  const [airports,setAirports]=useState(()=>AIRPORTS.map(a=>({...a,updatedAt:Date.now()-Math.floor(Math.random()*4000000),updatedBy:'sistema',changed:[]})));
+  const [logs,setLogs]=useState([]);
+  const [view,setView]=useState('viewer');
+  const [editing,setEditing]=useState(null);
+  const [query,setQuery]=useState('');
+  const [filter,setFilter]=useState('all'); // all | mine
+  const [toasts,setToasts]=useState([]);
+  const [clock,setClock]=useState(clockZ());
+  const [unread,setUnread]=useState(0);
+  const lastVer=useRef(0);
+
+  // clock
+  useEffect(()=>{const t=setInterval(()=>setClock(clockZ()),1000);return ()=>clearInterval(t);},[]);
+
+  // initial load + poll for changes from other "units"
+  useEffect(()=>{
+    let live=true;
+    (async()=>{
+      const s=await loadState();
+      if(s&&live){ applyRemote(s,false); }
+    })();
+    const poll=setInterval(async()=>{
+      const s=await loadState();
+      if(s&&s._ver>lastVer.current){ applyRemote(s,true); }
+    },2500);
+    return ()=>{live=false;clearInterval(poll);};
+  },[]);
+
+  function applyRemote(s, signal){
+    lastVer.current=s._ver||0;
+    if(s.airports){
+      setAirports(prev=>{
+        return s.airports.map(na=>{
+          const old=prev.find(p=>p.icao===na.icao);
+          // detect external change for blink
+          const changed=[];
+          if(old){
+            ['rwy','star','app'].forEach(f=>{ if(old[f]!==na[f]) changed.push(f); });
+          }
+          return {...na, changed: (signal&&changed.length)?changed: (na._self?[]:(old?old.changed:[])) };
+        });
+      });
+    }
+    if(s.logs) setLogs(s.logs);
+    if(signal){
+      // someone else changed something
+      const evt=(s.logs||[])[0];
+      if(evt && (!user || evt.unit!==user.unit)){
+        pushToast('warn', 'ACTUALIZACIÓN '+(evt.icao||''), evt.summary||'Cambio operacional recibido');
+        setUnread(u=>u+1);
+        // auto-clear blink after 9s
+        setTimeout(()=>{
+          setAirports(prev=>prev.map(a=>a.icao===evt.icao?{...a,changed:[]}:a));
+        },9000);
+      }
+    }
+  }
+
+  function pushToast(kind,title,msg){
+    const id=Math.random();
+    setToasts(t=>[...t,{id,kind,title,msg}]);
+    setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),4500);
+  }
+
+  // commit a change (local) and broadcast
+  async function commitChange(icao, next, diff){
+    const ts=Date.now();
+    const newAirports=airports.map(a=>a.icao===icao
+      ? {...a,...next,updatedAt:ts,updatedBy:user.name+' · '+user.unit,changed:diff.map(d=>d.field),_self:true}
+      : {...a,_self:false});
+    const summary=diff.map(d=>fieldLabel(d.field)+': '+d.to).join(' · ');
+    const logEntry={id:ts,type:'upd',icao,unit:user.unit,user:user.name,ts,diff,summary,zulu:nowZ()};
+    const newLogs=[logEntry,...logs].slice(0,200);
+    setAirports(newAirports);
+    setLogs(newLogs);
+    setEditing(null);
+    pushToast('ok','PUBLICADO '+icao, summary+' — visible para todas las unidades');
+    const ver=Date.now();
+    lastVer.current=ver;
+    await saveState({_ver:ver, airports:newAirports.map(a=>({...a,changed:[]})), logs:newLogs});
+    // clear our own blink after a bit
+    setTimeout(()=>setAirports(prev=>prev.map(a=>a.icao===icao?{...a,changed:[]}:a)),9000);
+  }
+
+  function login(unit,name){
+    const u=UNITS.find(x=>x.code===unit);
+    setUser({unit, name, region:u?u.region:'', role:'Controlador'});
+    setView('viewer');
+  }
+
+  if(!user) return h(Login,{onLogin:login});
+
+  const mine=airports.filter(a=>a.owner===user.unit);
+  const visible=airports.filter(a=>{
+    const q=query.trim().toUpperCase();
+    if(filter==='mine' && a.owner!==user.unit) return false;
+    if(q && !(a.icao.includes(q)||a.city.toUpperCase().includes(q)||a.name.toUpperCase().includes(q))) return false;
+    return true;
+  });
+  const changedNow=airports.filter(a=>a.changed&&a.changed.length).length;
+
+  return h('div',{style:{display:'contents'}},
+    h(TopBar,{user,clock,view,setView,unread,onLogout:()=>setUser(null)}),
+    h('div',{className:'stage'},
+      h(Rail,{user,view,setView,mine,changedNow}),
+      h('div',{className:'content'},
+        view==='viewer' && h(Viewer,{airports:visible,allCount:airports.length,mine:mine.length,changedNow,
+          query,setQuery,filter,setFilter,user,onEdit:setEditing}),
+        view==='log' && h(LogView,{logs,user}),
+        view==='brief' && h(Briefing,{airports,logs,user}),
+      )
+    ),
+    h(Footer,{user,clock,changedNow}),
+    h(MobileTabs,{view,setView,changedNow}),
+    editing && h(Editor,{ap:editing,user,onClose:()=>setEditing(null),onSave:commitChange}),
+    h('div',{className:'toasts'}, toasts.map(t=>
+      h('div',{key:t.id,className:'toast'+(t.kind==='warn'?' warn':'')},
+        h('b',null,t.title), h('span',null,t.msg))))
+  );
+}
+
+function fieldLabel(f){return f==='rwy'?'PISTA':f==='star'?'STAR':f==='app'?'APROX':f;}
+
+/* ---------------- Login ---------------- */
+function Login({onLogin}){
+  const [unit,setUnit]=useState(null);
+  const [name,setName]=useState('');
+  return h('div',{className:'login'},
+    h('div',{className:'loginbox'},
+      h('div',{className:'lh'}, GLYPH,
+        h('b',null,'RUNCAST'),
+        h('small',null,'SISTEMA OPERACIONAL ATC · CHILE')),
+      h('div',{className:'lb'},
+        h('div',{className:'lead'},'Acceso por unidad de control. Cada unidad administra los aeropuertos de su jurisdicción.'),
+        h('div',{className:'unitsel'},
+          UNITS.map(u=>h('button',{key:u.code,className:unit===u.code?'on':'',onClick:()=>setUnit(u.code)},
+            h('span',{className:'uc'},u.code.split('-')[0]),
+            h('span',{className:'un'},u.name)))),
+        h('div',{className:'field role-in'},
+          h('label',null,'Identificación del controlador'),
+          h('input',{value:name,placeholder:'Ej. R. Soto',onChange:e=>setName(e.target.value),
+            onKeyDown:e=>{if(e.key==='Enter'&&unit&&name.trim())onLogin(unit,name.trim());}})),
+        h('button',{className:'btn primary',style:{width:'100%'},disabled:!unit||!name.trim(),
+          onClick:()=>onLogin(unit,name.trim())},'Iniciar sesión operacional')
+      )
+    )
+  );
+}
+
+/* ---------------- Top Bar ---------------- */
+function TopBar({user,clock,view,setView,unread,onLogout}){
+  const tabs=[['viewer','Visor'],['log','Bitácora'],['brief','Briefing']];
+  return h('div',{className:'topbar'},
+    h('div',{className:'brand'}, GLYPH, h('div',null,
+      h('b',null,'RUNCAST'), h('small',null,'ATC · CHILE'))),
+    h('div',{className:'nav'},
+      tabs.map(([k,l])=>h('button',{key:k,className:view===k?'on':'',onClick:()=>setView(k)},
+        l, (k==='log'&&unread>0)&&h('span',{className:'dot'})))),
+    h('div',{className:'clock'},
+      h('div',null,
+        h('div',{className:'z'},clock.hms.slice(0,5),h('span',{className:'zz'},clock.hms.slice(5)),' ',h('span',{className:'zz'},'Z')),
+        h('div',{className:'lbl'},'TIEMPO UTC')),
+    ),
+    h('div',{className:'who',onClick:onLogout,title:'Cerrar sesión'},
+      h('div',{className:'av'},user.name.replace(/[^A-Za-z]/g,'').slice(0,2).toUpperCase()),
+      h('div',{className:'meta'},
+        h('b',null,user.name),
+        h('br'),h('span',null,user.unit)))
+  );
+}
+
+/* ---------------- Rail ---------------- */
+function Rail({user,view,setView,mine,changedNow}){
+  return h('div',{className:'rail'},
+    h('div',{className:'sec'},
+      h('div',{className:'eyebrow'},'Unidad activa'),
+      h('div',{className:'unitcard'},
+        h('div',{className:'code'},user.unit),
+        h('div',{className:'nm'}, UNITS.find(u=>u.code===user.unit)?.name||''),
+      ),
+      h('div',{style:{display:'flex',gap:8,marginTop:4}},
+        h('span',{className:'pill ok'},'EN SERVICIO'),
+        h('span',{className:'pill off'},user.region))
+    ),
+    h('div',{className:'railnav'},
+      h('button',{className:view==='viewer'?'on':'',onClick:()=>setView('viewer')},
+        Ic.tower({}),'Visor operacional', changedNow>0&&h('span',{className:'badge'},changedNow)),
+      h('button',{className:view==='log'?'on':'',onClick:()=>setView('log')},
+        Ic.log({}),'Bitácora de cambios'),
+      h('button',{className:view==='brief'?'on':'',onClick:()=>setView('brief')},
+        Ic.brief({}),'Briefing de turno'),
+    ),
+    h('div',{className:'sec',style:{marginTop:'auto',borderTop:'1px solid var(--line)',borderBottom:'none'}},
+      h('div',{className:'eyebrow',style:{marginBottom:8}},'A mi cargo'),
+      h('div',{style:{fontFamily:'var(--mono)',fontSize:24,fontWeight:800,color:'var(--phos)',textShadow:'var(--glow)'}}, mine.length),
+      h('div',{style:{fontFamily:'var(--mono)',fontSize:10,color:'var(--ink-faint)',marginTop:4,letterSpacing:'.08em'}}, mine.length===1?'AERÓDROMO':'AERÓDROMOS'))
+  );
+}
+
+/* ---------------- Viewer ---------------- */
+function Viewer({airports,allCount,mine,changedNow,query,setQuery,filter,setFilter,user,onEdit}){
+  const ifrCount=airports.filter(a=>{const m=METARS[a.icao];return m&&(m.cat==='IFR'||m.cat==='LIFR');}).length;
+  return h('div',null,
+    h('div',{className:'strip'},
+      h('div',{className:'cell'}, h('div',{className:'k'},'Aeródromos en red'), h('div',{className:'v g'},allCount)),
+      h('div',{className:'cell'}, h('div',{className:'k'},'A mi cargo'), h('div',{className:'v'},mine)),
+      h('div',{className:'cell'}, h('div',{className:'k'},'Cambios activos'), h('div',{className:'v a'},changedNow,h('small',null,' nuevos'))),
+      h('div',{className:'cell'}, h('div',{className:'k'},'Condición IFR/LIFR'), h('div',{className:'v',style:{color:ifrCount?'var(--red)':'var(--phos)'}},ifrCount))
+    ),
+    h('div',{className:'gridwrap'},
+      h('div',{className:'toolbar'},
+        h('div',{className:'search'}, Ic.search({}),
+          h('input',{value:query,placeholder:'Buscar OACI / ciudad…',onChange:e=>setQuery(e.target.value)})),
+        h('button',{className:'filterbtn'+(filter==='all'?' on':''),onClick:()=>setFilter('all')},'Toda la red'),
+        h('button',{className:'filterbtn'+(filter==='mine'?' on':''),onClick:()=>setFilter('mine')},'Mi jurisdicción'),
+      ),
+      airports.length===0
+        ? h('div',{className:'empty'},'Sin aeródromos que coincidan con el filtro.')
+        : h('div',{className:'apgrid'},
+            airports.map(a=>h(AirportCard,{key:a.icao,a,user,onEdit})))
+    )
+  );
+}
+
+function AirportCard({a,user,onEdit}){
+  const owns=a.owner===user.unit;
+  const m=METARS[a.icao];
+  const chg=a.changed||[];
+  const fld=(key,label,val)=>h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
+    h('div',{className:'k'},label),
+    h('div',{className:'val'+(val?'':' empty')}, val||'—'));
+  return h('div',{className:'apcard'+(chg.length?' changed':'')},
+    h('div',{className:'crest'},
+      h('div',null,
+        h('div',{className:'icao'},a.icao),
+        h('div',{className:'nm'},a.name),
+        h('div',{className:'city'},a.city.toUpperCase())),
+      h('div',{className:'owntag'},
+        owns?h('b',null,'MI UNIDAD'):'ADMIN',
+        owns?'':h('span',null,a.owner))),
+    h('div',{className:'opfields'},
+      fld('rwy','Pista en uso', a.rwy),
+      fld('star','STAR asignada', a.star),
+      fld('app','Aproximación', a.app)),
+    m && h('div',{className:'metarline'},
+      h('span',{className:'fr '+m.cat},m.cat),
+      h('span',null,m.raw)),
+    h('div',{className:'apfoot'},
+      h('span',{className:'age'},'Actualizado '+ageMin(a.updatedAt)),
+      h('span',{className:'by'},'· '+(a.updatedBy||'—')),
+      h('span',{className:'editlink'+(owns?'':' locked'),
+        title:owns?'':'Solo la unidad responsable puede editar',
+        onClick:()=>owns&&onEdit(a)}, owns?'Editar':'Bloqueado'))
+  );
+}
+
+/* ---------------- Editor Drawer ---------------- */
+function Editor({ap,user,onClose,onSave}){
+  const [rwy,setRwy]=useState(ap.rwy);
+  const [star,setStar]=useState(ap.star);
+  const [app,setApp]=useState(ap.app);
+  const diff=[];
+  if(rwy!==ap.rwy) diff.push({field:'rwy',from:ap.rwy,to:rwy});
+  if(star!==ap.star) diff.push({field:'star',from:ap.star,to:star});
+  if(app!==ap.app) diff.push({field:'app',from:ap.app,to:app});
+
+  const segField=(label,opts,val,set)=>h('div',{className:'field'},
+    h('label',null,label),
+    h('div',{className:'seg'}, opts.map(o=>h('button',{key:o,className:val===o?'on':'',onClick:()=>set(o)},o))));
+
+  return h('div',{className:'scrim',onClick:e=>{if(e.target.className==='scrim')onClose();}},
+    h('div',{className:'drawer'},
+      h('div',{className:'dhead'},
+        h('div',{className:'icao'},ap.icao),
+        h('div',null,
+          h('div',{style:{fontFamily:'var(--mono)',fontSize:11,color:'var(--ink-dim)',letterSpacing:'.04em'}},ap.name),
+          h('div',{style:{fontFamily:'var(--mono)',fontSize:9.5,color:'var(--ink-faint)',marginTop:3,letterSpacing:'.1em'}},'CONFIGURACIÓN OPERACIONAL')),
+        h('button',{className:'x',onClick:onClose},'✕')),
+      h('div',{className:'dbody'},
+        diff.length>0 && h('div',{className:'diffbox'},
+          h('div',{className:'dl'},'⚠ Cambios pendientes de publicación'),
+          diff.map(d=>h('div',{className:'diffrow',key:d.field},
+            h('b',null,fieldLabel(d.field)),
+            h('span',{className:'from'},d.from), h('span',null,'→'), h('span',{className:'to'},d.to)))),
+        segField('Pista en uso', ap.rwys, rwy, setRwy),
+        segField('STAR asignada', ap.stars, star, setStar),
+        segField('Aproximación en uso', ap.apps, app, setApp),
+        h('div',{className:'field'},
+          h('label',null,'Observación operacional ',h('span',{className:'hint'},'opcional')),
+          h('textarea',{placeholder:'Ej. cambio por viento 210/14, pista preferencial nocturna…'}))
+      ),
+      h('div',{className:'dfoot'},
+        h('button',{className:'btn ghost',style:{flex:1},onClick:onClose},'Cancelar'),
+        h('button',{className:'btn primary',style:{flex:2},disabled:diff.length===0,
+          onClick:()=>onSave(ap.icao,{rwy,star,app},diff)},
+          diff.length?('Publicar '+diff.length+' cambio'+(diff.length>1?'s':'')):'Sin cambios'))
+    )
+  );
+}
+
+/* ---------------- Log ---------------- */
+function LogView({logs,user}){
+  return h('div',null,
+    h('div',{className:'phead',style:{borderTop:'none'}},
+      h('h3',null,'Bitácora de cambios operacionales'),
+      h('span',{className:'sub'},logs.length+' EVENTOS · RED NACIONAL')),
+    logs.length===0
+      ? h('div',{className:'empty'},'Sin cambios registrados en este turno. Las publicaciones de cualquier unidad aparecerán aquí en tiempo real.')
+      : h('div',{className:'feed'},
+          logs.map(l=>h('div',{key:l.id,className:'levt upd'},
+            h('div',{className:'tk'}, l.zulu),
+            h('div',{className:'marker'},h('i')),
+            h('div',{className:'body'},
+              h('div',{className:'ttl'},'Actualización ',h('b',null,l.icao)),
+              h('div',{className:'det'},
+                l.diff.map((d,i)=>h('span',{key:i},
+                  fieldLabel(d.field)+' ',
+                  h('span',{className:'chg'},d.from+' → '+d.to),
+                  i<l.diff.length-1?'  ·  ':''))),
+              h('div',{className:'who2'}, l.user+' · '+l.unit+(l.unit===user.unit?' (esta unidad)':''))))))
+  );
+}
+
+/* ---------------- Briefing ---------------- */
+function Briefing({airports,logs,user}){
+  const [signed,setSigned]=useState({out:false,in:false});
+  const mine=airports.filter(a=>a.owner===user.unit);
+  const ifr=airports.filter(a=>{const m=METARS[a.icao];return m&&(m.cat==='IFR'||m.cat==='LIFR');});
+  const recent=logs.slice(0,6);
+  return h('div',{className:'brief'},
+    h('div',{className:'panel',style:{padding:'16px 18px',display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}},
+      h('div',null,
+        h('div',{className:'eyebrow'},'Briefing de cambio de turno'),
+        h('div',{style:{fontFamily:'var(--mono)',fontSize:20,fontWeight:800,color:'var(--ink)',marginTop:6}},user.unit),
+        h('div',{style:{fontFamily:'var(--mono)',fontSize:11,color:'var(--ink-dim)',marginTop:4}},'Generado '+nowZ()+' · turno saliente → entrante')),
+      h('span',{className:'pill ok',style:{marginLeft:'auto'}},'LISTO PARA TRASPASO')),
+
+    h('div',{className:'brsec'},
+      h('div',{className:'bh'}, h('span',{className:'n'},'1'), h('h4',null,'Configuración actual — mi jurisdicción')),
+      h('div',{className:'bc'},
+        mine.map(a=>h('div',{className:'brrow',key:a.icao},
+          h('span',{className:'ic'},a.icao),
+          h('span',{className:'tx'},'Pista ',h('b',null,a.rwy),' · STAR ',h('b',null,a.star),' · Aprox ',h('b',null,a.app)),
+          (a.changed&&a.changed.length)?h('span',{className:'tg'},'CAMBIO RECIENTE'):null)))),
+
+    h('div',{className:'brsec'},
+      h('div',{className:'bh'}, h('span',{className:'n'},'2'), h('h4',null,'Meteorología relevante')),
+      h('div',{className:'bc'},
+        ifr.length===0
+          ? h('div',{className:'brrow'},h('span',{className:'tx'},'Sin aeródromos en condición IFR/LIFR en la red. Operación visual generalizada.'))
+          : ifr.map(a=>h('div',{className:'brrow',key:a.icao},
+              h('span',{className:'ic'},a.icao),
+              h('span',{className:'tx',style:{fontSize:11}}, METARS[a.icao].raw),
+              h('span',{className:'tg'},METARS[a.icao].cat))))),
+
+    h('div',{className:'brsec'},
+      h('div',{className:'bh'}, h('span',{className:'n'},'3'), h('h4',null,'Cambios del turno')),
+      h('div',{className:'bc'},
+        recent.length===0
+          ? h('div',{className:'brrow'},h('span',{className:'tx'},'Sin cambios operacionales registrados durante el turno.'))
+          : recent.map(l=>h('div',{className:'brrow',key:l.id},
+              h('span',{className:'ic'},l.icao),
+              h('span',{className:'tx'}, l.diff.map(d=>fieldLabel(d.field)+' '+d.from+'→'+d.to).join(', '),' — por ',h('b',null,l.user)),
+              h('span',{className:'tg'},l.zulu))))),
+
+    h('div',{className:'brsec'},
+      h('div',{className:'bh'}, h('span',{className:'n'},'4'), h('h4',null,'Traspaso y firma')),
+      h('div',{className:'bc'},
+        h('div',{className:'handoff'},
+          h('div',{className:'signbox'},
+            h('div',{className:'role'},'Controlador saliente'),
+            h('div',{className:'nm'},user.name),
+            h('div',{className:'st '+(signed.out?'signed':'pending')}, signed.out?'✓ Firmado '+nowZ():'Pendiente'),
+            !signed.out&&h('button',{className:'signbtn',onClick:()=>setSigned(s=>({...s,out:true}))},'Firmar entrega')),
+          h('div',{className:'signbox'},
+            h('div',{className:'role'},'Controlador entrante'),
+            h('div',{className:'nm'},'— por asignar —'),
+            h('div',{className:'st '+(signed.in?'signed':'pending')}, signed.in?'✓ Firmado '+nowZ():'Pendiente'),
+            !signed.in&&h('button',{className:'signbtn',onClick:()=>setSigned(s=>({...s,in:true}))},'Confirmar recepción')))))
+  );
+}
+
+/* ---------------- Footer ---------------- */
+function Footer({user,clock,changedNow}){
+  return h('div',{className:'footer'},
+    h('div',{className:'fi'}, h('span',{className:'live'}), h('b',null,'RED OPERACIONAL'),' · sincronizada'),
+    h('div',{className:'fi'},'UNIDAD: ',h('b',null,'\u00A0'+user.unit)),
+    h('div',{className:'fi'}, changedNow>0?h('span',{style:{color:'var(--amber)'}},'⚠ '+changedNow+' cambio(s) activo(s)'):'Sin alertas activas'),
+    h('div',{className:'right'},
+      h('div',{className:'fi'},'Protocolos de seguridad'),
+      h('div',{className:'fi'},'Soporte AIM Chile'),
+      h('div',{className:'fi'},'Sync '+clock.hms+' Z'))
+  );
+}
+
+/* ---------------- Mobile Tabs ---------------- */
+function MobileTabs({view,setView,changedNow}){
+  const items=[['viewer','Visor',Ic.tower],['log','Bitácora',Ic.log],['brief','Briefing',Ic.brief]];
+  return h('div',{className:'mtab'},
+    items.map(([k,l,Icon])=>h('button',{key:k,className:view===k?'on':'',onClick:()=>setView(k)},
+      Icon({}), l, (k==='viewer'&&changedNow>0)&&h('span',{className:'dot'}))));
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+</script>
+</body>
+</html>
