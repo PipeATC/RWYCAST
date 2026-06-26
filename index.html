@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>RUNCAST · Sistema Operacional ATC Chile</title>
+<title>RWYCAST · Sistema Operacional ATC Chile</title>
 <style>
   :root{
     /* Phosphor control-room palette, grounded in radar/ATIS displays */
@@ -82,8 +82,9 @@
   .nav button .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--amber);margin-left:7px;vertical-align:middle;box-shadow:0 0 8px var(--amber);animation:pulse 1.1s infinite}
 
   .clock{margin-left:auto;display:flex;align-items:center;gap:16px;padding:0 16px;border-left:1px solid var(--line)}
-  .clock .z{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--ink);letter-spacing:.06em}
-  .clock .z .zz{color:var(--phos)}
+  .clock .cgrp{display:flex;flex-direction:column;align-items:flex-end}
+  .clock .z{font-family:var(--mono);font-size:18px;font-weight:700;color:#fff;letter-spacing:.06em;line-height:1.15}
+  .clock .z .zu{color:#fff}
   .clock .lbl{font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:var(--ink-faint);text-align:right}
   .who{display:flex;align-items:center;gap:10px;padding:0 16px;border-left:1px solid var(--line);cursor:pointer}
   .who .av{width:30px;height:30px;border:1px solid var(--phos);display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:12px;color:var(--phos)}
@@ -502,7 +503,7 @@ function subscribeState(onState){
       const cb=snap=>{ const v=snap.val(); if(!v) return; onState(v, first); first=false; };
       _dbRef.on('value', cb);
       return {mode:'firebase', stop:()=>{ try{_dbRef.off('value',cb);}catch(e){} }};
-    }catch(e){ console.warn('[RUNCAST] Firebase no disponible, modo local:', e); _dbRef=null; }
+    }catch(e){ console.warn('[RWYCAST] Firebase no disponible, modo local:', e); _dbRef=null; }
   }
   // Fallback local (sandbox). NO sincroniza entre dispositivos en GitHub Pages.
   let lastVer=0, alive=true;
@@ -517,7 +518,7 @@ function subscribeState(onState){
 
 /* Publica el estado completo a todas las unidades. */
 async function publishState(s){
-  if(_dbRef){ try{ await _dbRef.set(s); return; }catch(e){ console.warn('[RUNCAST] publish falló:', e); } }
+  if(_dbRef){ try{ await _dbRef.set(s); return; }catch(e){ console.warn('[RWYCAST] publish falló:', e); } }
   await saveLocal(s);
 }
 
@@ -531,7 +532,7 @@ function subscribeMetars(onMetars){
       const cb=snap=>onMetars(snap.val()||{});
       ref.on('value', cb);
       return ()=>{ try{ ref.off('value',cb); }catch(e){} };
-    }catch(e){ console.warn('[RUNCAST] METAR no disponible:', e); }
+    }catch(e){ console.warn('[RWYCAST] METAR no disponible:', e); }
   }
   return ()=>{};
 }
@@ -544,7 +545,7 @@ async function saveLocal(s){
 }
 
 function nowZ(){const d=new Date();const p=n=>String(n).padStart(2,'0');return p(d.getUTCHours())+p(d.getUTCMinutes())+p(d.getUTCSeconds())+'Z';}
-function clockZ(){const d=new Date();const p=n=>String(n).padStart(2,'0');return {hms:p(d.getUTCHours())+':'+p(d.getUTCMinutes())+':'+p(d.getUTCSeconds())};}
+function clockZ(){const d=new Date();const p=n=>String(n).padStart(2,'0');return {hms:p(d.getUTCHours())+':'+p(d.getUTCMinutes())+':'+p(d.getUTCSeconds()), utc:p(d.getUTCHours())+':'+p(d.getUTCMinutes()), local:p(d.getHours())+':'+p(d.getMinutes())};}
 function ageMin(ts){if(!ts)return '—';const m=Math.floor((Date.now()-ts)/60000);if(m<1)return 'hace <1 min';if(m<60)return 'hace '+m+' min';return 'hace '+Math.floor(m/60)+'h '+(m%60)+'m';}
 
 /* ============================================================
@@ -730,7 +731,7 @@ function Login({onLogin}){
   return h('div',{className:'login'},
     h('div',{className:'loginbox'},
       h('div',{className:'lh'}, GLYPH,
-        h('b',null,'RUNCAST'),
+        h('b',null,'RWYCAST'),
         h('small',null,'SISTEMA OPERACIONAL ATC · CHILE')),
       h('div',{className:'lb'},
         h('div',{className:'lead'},'Acceso por unidad de control. Cada unidad administra los aeropuertos de su jurisdicción.'),
@@ -754,14 +755,17 @@ function TopBar({user,clock,view,setView,unread,onLogout}){
   const tabs=[['viewer','Visor'],['log','Bitácora'],['brief','Briefing']];
   return h('div',{className:'topbar'},
     h('div',{className:'brand'}, GLYPH, h('div',null,
-      h('b',null,'RUNCAST'), h('small',null,'ATC · CHILE'))),
+      h('b',null,'RWYCAST'), h('small',null,'ATC · CHILE'))),
     h('div',{className:'nav'},
       tabs.map(([k,l])=>h('button',{key:k,className:view===k?'on':'',onClick:()=>setView(k)},
         l, (k==='log'&&unread>0)&&h('span',{className:'dot'})))),
     h('div',{className:'clock'},
-      h('div',null,
-        h('div',{className:'z'},clock.hms.slice(0,5),h('span',{className:'zz'},clock.hms.slice(5)),' ',h('span',{className:'zz'},'Z')),
-        h('div',{className:'lbl'},'TIEMPO UTC')),
+      h('div',{className:'cgrp'},
+        h('div',{className:'z'},clock.local),
+        h('div',{className:'lbl'},'LOCAL')),
+      h('div',{className:'cgrp'},
+        h('div',{className:'z'},clock.utc,' ',h('span',{className:'zu'},'Z')),
+        h('div',{className:'lbl'},'UTC')),
     ),
     h('div',{className:'who',onClick:onLogout,title:'Cerrar sesión'},
       h('div',{className:'av'},user.name.replace(/[^A-Za-z]/g,'').slice(0,2).toUpperCase()),
@@ -816,8 +820,8 @@ function Viewer({airports,allAirports,allCount,mine,changedNow,query,setQuery,fi
       h('div',{className:'toolbar'},
         h('div',{className:'search'}, Ic.search({}),
           h('input',{value:query,placeholder:'Buscar OACI / ciudad…',onChange:e=>setQuery(e.target.value)})),
-        h('button',{className:'filterbtn'+(filter==='all'?' on':''),onClick:()=>setFilter('all')},'Toda la red'),
         h('button',{className:'filterbtn'+(mineMode?' on':''),onClick:()=>setFilter('mine')},'Mi jurisdicción'),
+        h('button',{className:'filterbtn'+(filter==='all'?' on':''),onClick:()=>setFilter('all')},'Toda la red'),
       ),
       (!mineMode && airports.length===0)
         ? h('div',{className:'empty'},'Sin aeródromos que coincidan con el filtro.')
