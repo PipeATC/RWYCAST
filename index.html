@@ -178,6 +178,34 @@
   .apfoot .editlink{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--phos);cursor:pointer;text-transform:uppercase;border:1px solid var(--line);padding:4px 9px}
   .apfoot .editlink:hover{background:rgba(63,240,168,.08)}
   .apfoot .editlink.locked{color:var(--ink-faint);cursor:not-allowed;border-color:var(--line-soft)}
+  .apfoot .editlink.rm{color:var(--ink-dim);border-color:var(--line)}
+  .apfoot .editlink.rm:hover{color:var(--red);border-color:var(--red);background:rgba(255,94,108,.08)}
+
+  /* add-card (tarjeta-botón "+") */
+  .apcard.addcard{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+    min-height:172px;border:1px dashed var(--line);background:rgba(255,255,255,.012);cursor:pointer;
+    color:var(--ink-faint);font-family:var(--mono);text-align:center;transition:.15s}
+  .apcard.addcard:hover{border-color:var(--phos);color:var(--phos);background:rgba(63,240,168,.04)}
+  .apcard.addcard .addplus{font-size:40px;font-weight:300;line-height:.8}
+  .apcard.addcard .addtxt{font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+  .apcard.addcard .addsub{font-size:9px;letter-spacing:.1em;color:var(--ink-faint)}
+
+  /* picker modal (agregar a Mi jurisdicción) */
+  .scrim.center{justify-content:center;align-items:center}
+  .pickbox{width:min(440px,94vw);max-height:80vh;display:flex;flex-direction:column;
+    background:var(--panel);border:1px solid var(--phos);box-shadow:0 20px 60px rgba(0,0,0,.5);animation:slidein .2s}
+  .pickhead{display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line)}
+  .pickhead b{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink)}
+  .pickhead .x{margin-left:auto;background:none;border:1px solid var(--line);color:var(--ink-dim);width:30px;height:30px;cursor:pointer;font-size:14px}
+  .pickhead .x:hover{color:var(--ink);border-color:var(--ink-faint)}
+  .picklist{overflow-y:auto;padding:9px}
+  .pickrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 13px;margin-bottom:6px;
+    border:1px solid var(--line);background:var(--panel-2);color:var(--ink);cursor:pointer;font-family:var(--mono);transition:.13s}
+  .pickrow:last-child{margin-bottom:0}
+  .pickrow:hover{border-color:var(--phos);background:rgba(63,240,168,.05)}
+  .pickrow .pickicao{font-weight:800;color:var(--phos);font-size:14px;min-width:52px;letter-spacing:.04em}
+  .pickrow .picknm{flex:1;font-size:11px;color:var(--ink-dim)}
+  .pickrow .pickplus{font-size:10px;letter-spacing:.08em;color:var(--phos);text-transform:uppercase;white-space:nowrap}
 
   .metarline{padding:9px 13px;border-top:1px solid var(--line-soft);font-family:var(--mono);font-size:10.5px;color:var(--ink-dim);letter-spacing:.02em;line-height:1.5;word-break:break-word;display:flex;gap:8px;align-items:baseline}
   .metarline .fr{flex:0 0 auto;font-weight:700;padding:1px 6px;font-size:9px;letter-spacing:.08em}
@@ -536,6 +564,7 @@ function App(){
   const [alerts,setAlerts]=useState([]);   // cambios de otras unidades sin acuse
   const [syncMode,setSyncMode]=useState('local');
   const [metars,setMetars]=useState({});   // METAR en vivo desde /runcast/metars
+  const [watch,setWatch]=useState([]);     // watchlist personal (ICAOs) de "Mi jurisdicción"
   const lastVer=useRef(0);
   const userRef=useRef(null); userRef.current=user;
   const seenLogs=useRef(new Set());          // ids de eventos ya procesados
@@ -556,6 +585,21 @@ function App(){
 
   // suscripción en tiempo real a los METAR (alimentados por GitHub Actions)
   useEffect(()=>subscribeMetars(setMetars),[]);
+
+  // watchlist personal por unidad (persistida en el dispositivo)
+  useEffect(()=>{
+    if(!user) return;
+    let saved=null;
+    try{ saved=JSON.parse(localStorage.getItem('runcast:watch:'+user.unit)||'null'); }catch(e){}
+    setWatch(Array.isArray(saved) ? saved : AIRPORTS.filter(a=>a.owner===user.unit).map(a=>a.icao));
+  },[user]);
+  useEffect(()=>{
+    if(!user) return;
+    try{ localStorage.setItem('runcast:watch:'+user.unit, JSON.stringify(watch)); }catch(e){}
+  },[watch,user]);
+
+  const addWatch=icao=>setWatch(w=>w.includes(icao)?w:[...w,icao]);
+  const removeWatch=icao=>setWatch(w=>w.filter(x=>x!==icao));
 
   function applyRemote(s, signal){
     lastVer.current=s._ver||0;
@@ -649,7 +693,7 @@ function App(){
   const mine=airports.filter(a=>a.owner===user.unit);
   const visible=airports.filter(a=>{
     const q=query.trim().toUpperCase();
-    if(filter==='mine' && a.owner!==user.unit) return false;
+    if(filter==='mine' && !watch.includes(a.icao)) return false;
     if(q && !(a.icao.includes(q)||a.city.toUpperCase().includes(q)||a.name.toUpperCase().includes(q))) return false;
     return true;
   });
@@ -661,8 +705,9 @@ function App(){
       h(Rail,{user,view,setView,mine,changedNow}),
       h('div',{className:'content'},
         alerts.length>0 && h(AlertBanner,{alerts,onAck:ackAlert,onAckAll:ackAll}),
-        view==='viewer' && h(Viewer,{airports:visible,allCount:airports.length,mine:mine.length,changedNow,
-          query,setQuery,filter,setFilter,user,onEdit:setEditing,metars}),
+        view==='viewer' && h(Viewer,{airports:visible,allAirports:airports,allCount:airports.length,mine:mine.length,changedNow,
+          query,setQuery,filter,setFilter,user,onEdit:setEditing,metars,
+          watch,onAddWatch:addWatch,onRemoveWatch:removeWatch}),
         view==='log' && h(LogView,{logs,user}),
         view==='brief' && h(Briefing,{airports,logs,user,metars}),
       )
@@ -755,8 +800,11 @@ function Rail({user,view,setView,mine,changedNow}){
 }
 
 /* ---------------- Viewer ---------------- */
-function Viewer({airports,allCount,mine,changedNow,query,setQuery,filter,setFilter,user,onEdit,metars}){
+function Viewer({airports,allAirports,allCount,mine,changedNow,query,setQuery,filter,setFilter,user,onEdit,metars,watch,onAddWatch,onRemoveWatch}){
+  const [adding,setAdding]=useState(false);
   const ifrCount=airports.filter(a=>{const m=metars[a.icao];return m&&(m.cat==='IFR'||m.cat==='LIFR');}).length;
+  const mineMode=filter==='mine';
+  const available=allAirports.filter(a=>!watch.includes(a.icao));
   return h('div',null,
     h('div',{className:'strip'},
       h('div',{className:'cell'}, h('div',{className:'k'},'Aeródromos en red'), h('div',{className:'v g'},allCount)),
@@ -769,17 +817,45 @@ function Viewer({airports,allCount,mine,changedNow,query,setQuery,filter,setFilt
         h('div',{className:'search'}, Ic.search({}),
           h('input',{value:query,placeholder:'Buscar OACI / ciudad…',onChange:e=>setQuery(e.target.value)})),
         h('button',{className:'filterbtn'+(filter==='all'?' on':''),onClick:()=>setFilter('all')},'Toda la red'),
-        h('button',{className:'filterbtn'+(filter==='mine'?' on':''),onClick:()=>setFilter('mine')},'Mi jurisdicción'),
+        h('button',{className:'filterbtn'+(mineMode?' on':''),onClick:()=>setFilter('mine')},'Mi jurisdicción'),
       ),
-      airports.length===0
+      (!mineMode && airports.length===0)
         ? h('div',{className:'empty'},'Sin aeródromos que coincidan con el filtro.')
         : h('div',{className:'apgrid'},
-            airports.map(a=>h(AirportCard,{key:a.icao,a,user,onEdit,metars})))
-    )
+            airports.map(a=>h(AirportCard,{key:a.icao,a,user,onEdit,metars,
+              onRemove:mineMode?onRemoveWatch:null})),
+            mineMode && h(AddCard,{key:'__add',onClick:()=>setAdding(true)}))
+    ),
+    adding && h(AddPicker,{available,onAdd:onAddWatch,onClose:()=>setAdding(false)})
   );
 }
 
-function AirportCard({a,user,onEdit,metars}){
+/* tarjeta-botón para agregar aeródromos a la vista personal */
+function AddCard({onClick}){
+  return h('button',{className:'apcard addcard',onClick},
+    h('div',{className:'addplus'},'+'),
+    h('div',{className:'addtxt'},'Agregar aeródromo'),
+    h('div',{className:'addsub'},'a Mi jurisdicción'));
+}
+
+/* selector de aeródromos disponibles para agregar */
+function AddPicker({available,onAdd,onClose}){
+  return h('div',{className:'scrim center',onClick:e=>{if(e.target===e.currentTarget)onClose();}},
+    h('div',{className:'pickbox'},
+      h('div',{className:'pickhead'},
+        h('b',null,'Agregar a Mi jurisdicción'),
+        h('button',{className:'x',onClick:onClose},'✕')),
+      h('div',{className:'picklist'},
+        available.length===0
+          ? h('div',{className:'empty'},'Ya tienes todos los aeródromos de la red en tu vista.')
+          : available.map(a=>h('button',{key:a.icao,className:'pickrow',onClick:()=>onAdd(a.icao)},
+              h('span',{className:'pickicao'},a.icao),
+              h('span',{className:'picknm'},a.name+' · '+a.city),
+              h('span',{className:'pickplus'},'+ Agregar')))))
+  );
+}
+
+function AirportCard({a,user,onEdit,metars,onRemove}){
   const owns=a.owner===user.unit;
   const m=metars[a.icao];
   const chg=a.changed||[];
@@ -806,6 +882,8 @@ function AirportCard({a,user,onEdit,metars}){
     h('div',{className:'apfoot'},
       h('span',{className:'age'},'Actualizado '+ageMin(a.updatedAt)),
       h('span',{className:'by'},'· '+(a.updatedBy||'—')),
+      onRemove && h('span',{className:'editlink rm',title:'Quitar de Mi jurisdicción',
+        onClick:()=>onRemove(a.icao)},'Quitar'),
       h('span',{className:'editlink'+(owns?'':' locked'),
         title:owns?'':'Solo la unidad responsable puede editar',
         onClick:()=>owns&&onEdit(a)}, owns?'Editar':'Bloqueado'))
