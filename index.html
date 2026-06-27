@@ -466,6 +466,8 @@ const Ic = {
     h('path',{d:'M4 6h16v12H4zM4 10h16M9 6V4h6v2'})),
   search:(p)=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.8,...p},
     h('circle',{cx:11,cy:11,r:7}),h('path',{d:'m21 21-4.3-4.3'})),
+  users:(p)=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,...p},
+    h('path',{d:'M16 19v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM22 19v-2a4 4 0 0 0-3-3.87M16 3.13A4 4 0 0 1 16 11'})),
 };
 
 const GLYPH = h('svg',{className:'glyph',viewBox:'0 0 48 48',fill:'none'},
@@ -556,6 +558,127 @@ async function saveLocal(s){
   try{ await window.storage.set(SKEY, JSON.stringify(s), true);}catch(e){}
 }
 
+/* ============================================================
+   RBAC — Roles, permisos y base de usuarios
+   ------------------------------------------------------------
+   Roles disponibles:
+     admin   → Administrador General: acceso total; crea/edita/elimina
+               usuarios y modifica cualquier dato de cualquier unidad.
+     unit    → Usuario de Unidad: edita pistas/STAR/aprox SOLO de su
+               unidad aeroportuaria asignada.
+     sector  → Usuario de Sector de Control: solo visualización operativa
+               (sin permiso para editar ninguna base de datos).
+     general → Usuario General: solo la pestaña de Briefing de turno.
+
+   Nota de seguridad: la verificación de roles ocurre en el cliente. Para
+   seguridad real (que nadie eluda los permisos editando el JS) hay que
+   endurecer las reglas de Firebase RTDB / usar Firebase Auth en el servidor.
+   Esta capa hace cumplir los permisos funcionalmente en la app.
+   ============================================================ */
+const ROLES=['admin','unit','sector','general'];
+const ROLE_LABEL={
+  admin:'Administrador General',
+  unit:'Usuario de Unidad',
+  sector:'Usuario de Sector de Control',
+  general:'Usuario General',
+};
+const ROLE_SHORT={admin:'ADMIN',unit:'UNIDAD',sector:'SECTOR',general:'GENERAL'};
+const TAB_LABEL={viewer:'Visor',log:'Bitácora',brief:'Briefing',users:'Usuarios'};
+const RAIL_META={
+  viewer:['Visor operacional',Ic.tower],
+  log:['Bitácora de cambios',Ic.log],
+  brief:['Briefing de turno',Ic.brief],
+  users:['Gestión de usuarios',Ic.users],
+};
+
+// Pestañas permitidas por rol (control de rutas / navegación)
+function viewsFor(role){
+  switch(role){
+    case 'admin':  return ['viewer','log','brief','users'];
+    case 'unit':   return ['viewer','log','brief'];
+    case 'sector': return ['viewer','log','brief'];
+    default:       return ['brief']; // general
+  }
+}
+// ¿Puede el usuario editar este aeródromo? (capa de permisos sobre los datos)
+function canEditAirport(user,ap){
+  if(!user||!ap) return false;
+  if(user.role==='admin') return true;            // total: cualquier unidad
+  if(user.role==='unit')  return ap.owner===user.unit; // solo su unidad
+  return false;                                    // sector / general → lectura
+}
+function canManageUsers(user){ return !!user && user.role==='admin'; }
+const USERNAME_RE=/^[a-zA-Z0-9_-]{3,32}$/;          // claves válidas en RTDB
+
+// Admin sembrado en código (bootstrap). Se obliga a cambiar la contraseña en
+// el primer ingreso. Cambia estas credenciales por defecto cuanto antes.
+const SEED_ADMIN={username:'admin', name:'Administrador General', password:'RWYCAST-admin-2026'};
+
+/* ---- Hash de contraseñas (Web Crypto, SHA-256 con sal por usuario) ---- */
+function randSalt(){
+  const a=new Uint8Array(16); crypto.getRandomValues(a);
+  return [...a].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function hashPassword(pw,salt){
+  const data=new TextEncoder().encode((salt||'')+':'+pw);
+  const buf=await crypto.subtle.digest('SHA-256',data);
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+/* ---- Backend de usuarios (Firebase RTDB con fallback local) ---- */
+const UPATH='runcast/users';
+function ensureFirebase(){
+  if(firebaseConfigured()){
+    try{ if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG); return firebase.database(); }
+    catch(e){ console.warn('[RWYCAST] Firebase no disponible (users):',e); }
+  }
+  return null;
+}
+function readLocalUsers(){ try{return JSON.parse(localStorage.getItem('runcast:users')||'{}');}catch(e){return {};} }
+function writeLocalUsers(o){ try{localStorage.setItem('runcast:users',JSON.stringify(o));}catch(e){} }
+
+// Suscribe a la base de usuarios. onUsers(mapUsuarios, modo). Devuelve cleanup.
+function subscribeUsers(onUsers){
+  const db=ensureFirebase();
+  if(db){
+    const ref=db.ref(UPATH);
+    const cb=snap=>onUsers(snap.val()||{}, 'firebase');
+    ref.on('value',cb);
+    return ()=>{ try{ref.off('value',cb);}catch(e){} };
+  }
+  onUsers(readLocalUsers(),'local');
+  const t=setInterval(()=>onUsers(readLocalUsers(),'local'),2500);
+  return ()=>clearInterval(t);
+}
+async function writeUserDb(username,obj){
+  const db=ensureFirebase();
+  if(db){ await db.ref(UPATH+'/'+username).set(obj); return; }
+  const all=readLocalUsers(); all[username]=obj; writeLocalUsers(all);
+}
+async function deleteUserDb(username){
+  const db=ensureFirebase();
+  if(db){ await db.ref(UPATH+'/'+username).remove(); return; }
+  const all=readLocalUsers(); delete all[username]; writeLocalUsers(all);
+}
+async function loadUsersOnce(){
+  const db=ensureFirebase();
+  if(db){ try{ return (await db.ref(UPATH).get()).val()||{}; }catch(e){ return {}; } }
+  return readLocalUsers();
+}
+// Crea el Administrador General inicial si la base de usuarios está vacía.
+async function ensureSeedAdmin(){
+  const existing=await loadUsersOnce();
+  if(existing && Object.keys(existing).length) return;
+  const salt=randSalt();
+  const passHash=await hashPassword(SEED_ADMIN.password,salt);
+  await writeUserDb(SEED_ADMIN.username,{
+    username:SEED_ADMIN.username, name:SEED_ADMIN.name, role:'admin', unit:'',
+    salt, passHash, mustChangePassword:true, active:true,
+    createdAt:Date.now(), createdBy:'sistema'
+  });
+  console.info('[RWYCAST] Admin inicial creado → usuario "'+SEED_ADMIN.username+'". Cambia la contraseña al ingresar.');
+}
+
 function nowZ(){const d=new Date();const p=n=>String(n).padStart(2,'0');return p(d.getUTCHours())+p(d.getUTCMinutes())+p(d.getUTCSeconds())+'Z';}
 function clockZ(){const d=new Date();const p=n=>String(n).padStart(2,'0');return {hms:p(d.getUTCHours())+':'+p(d.getUTCMinutes())+':'+p(d.getUTCSeconds()), utc:p(d.getUTCHours())+':'+p(d.getUTCMinutes()), local:p(d.getHours())+':'+p(d.getMinutes())};}
 function ageMin(ts){if(!ts)return '—';const m=Math.floor((Date.now()-ts)/60000);if(m<1)return 'hace <1 min';if(m<60)return 'hace '+m+' min';return 'hace '+Math.floor(m/60)+'h '+(m%60)+'m';}
@@ -578,8 +701,11 @@ function App(){
   const [syncMode,setSyncMode]=useState('local');
   const [metars,setMetars]=useState({});   // METAR en vivo desde /runcast/metars
   const [watch,setWatch]=useState([]);     // watchlist personal (ICAOs) de "Mi jurisdicción"
+  const [users,setUsers]=useState({});       // base de usuarios (runcast/users)
+  const [editingUser,setEditingUser]=useState(null); // usuario en edición (panel admin)
   const lastVer=useRef(0);
   const userRef=useRef(null); userRef.current=user;
+  const usersMapRef=useRef({}); usersMapRef.current=users;
   const seenLogs=useRef(new Set());          // ids de eventos ya procesados
 
   // clock
@@ -599,16 +725,30 @@ function App(){
   // suscripción en tiempo real a los METAR (alimentados por GitHub Actions)
   useEffect(()=>subscribeMetars(setMetars),[]);
 
+  // base de usuarios: siembra el admin inicial y suscribe los cambios
+  useEffect(()=>{
+    ensureSeedAdmin().catch(e=>console.warn('[RWYCAST] seed admin:',e));
+    return subscribeUsers(u=>setUsers(u||{}));
+  },[]);
+
+  // control de rutas: si la vista actual no está permitida para el rol, redirige
+  useEffect(()=>{
+    if(user && !viewsFor(user.role).includes(view)) setView(viewsFor(user.role)[0]);
+  },[user,view]);
+
   // watchlist personal por unidad (persistida en el dispositivo)
   useEffect(()=>{
     if(!user) return;
     let saved=null;
-    try{ saved=JSON.parse(localStorage.getItem('runcast:watch:'+user.unit)||'null'); }catch(e){}
-    setWatch(Array.isArray(saved) ? saved : AIRPORTS.filter(a=>a.owner===user.unit).map(a=>a.icao));
+    try{ saved=JSON.parse(localStorage.getItem('runcast:watch:'+user.username)||'null'); }catch(e){}
+    const def = user.role==='unit' ? AIRPORTS.filter(a=>a.owner===user.unit).map(a=>a.icao)
+              : user.role==='general' ? []
+              : AIRPORTS.map(a=>a.icao);   // admin / sector observan toda la red
+    setWatch(Array.isArray(saved) ? saved : def);
   },[user]);
   useEffect(()=>{
     if(!user) return;
-    try{ localStorage.setItem('runcast:watch:'+user.unit, JSON.stringify(watch)); }catch(e){}
+    try{ localStorage.setItem('runcast:watch:'+user.username, JSON.stringify(watch)); }catch(e){}
   },[watch,user]);
 
   const addWatch=icao=>setWatch(w=>w.includes(icao)?w:[...w,icao]);
@@ -678,12 +818,19 @@ function App(){
 
   // publica un cambio y lo difunde a todas las unidades
   async function commitChange(icao, next, diff){
+    // capa de permisos: revalida en el "commit", no solo en la UI
+    const target=airports.find(a=>a.icao===icao);
+    if(!canEditAirport(user,target)){
+      pushToast('warn','ACCESO DENEGADO','Tu rol no permite editar '+icao);
+      setEditing(null); return;
+    }
     const ts=Date.now();
+    const stamp=user.unit||ROLE_SHORT[user.role]||'ADMIN';
     const newAirports=airports.map(a=>a.icao===icao
-      ? {...a,...next,updatedAt:ts,updatedBy:user.name+' · '+user.unit,changed:[]}
+      ? {...a,...next,updatedAt:ts,updatedBy:user.name+' · '+stamp,changed:[]}
       : a);
     const summary=diff.map(d=>fieldLabel(d.field)+': '+d.to).join(' · ');
-    const logEntry={id:ts,type:'upd',icao,unit:user.unit,user:user.name,ts,diff,summary,zulu:nowZ()};
+    const logEntry={id:ts,type:'upd',icao,unit:user.unit||stamp,user:user.name,ts,diff,summary,zulu:nowZ()};
     const newLogs=[logEntry,...logs].slice(0,200);
     seenLogs.current.add(ts);          // nuestro propio cambio no debe auto-alertarnos
     setAirports(newAirports);
@@ -695,15 +842,85 @@ function App(){
     await publishState({_ver:ver, airports:newAirports, logs:newLogs});
   }
 
-  function login(unit,name){
-    const u=UNITS.find(x=>x.code===unit);
-    setUser({unit, name, region:u?u.region:'', role:'Controlador'});
-    setView('viewer');
+  // autenticación: valida credenciales contra la base de usuarios y, recién
+  // autenticado, fija perfil (rol/unidad) y la vista inicial según atribuciones
+  async function login(username,password){
+    const rec=(usersMapRef.current||{})[username];
+    if(!rec) return {error:'Usuario no encontrado'};
+    if(rec.active===false) return {error:'Usuario inactivo. Contacta al administrador.'};
+    const hash=await hashPassword(password, rec.salt||'');
+    if(hash!==rec.passHash) return {error:'Contraseña incorrecta'};
+    const unitObj=UNITS.find(x=>x.code===rec.unit);
+    setUser({
+      username, name:rec.name, role:rec.role, unit:rec.unit||'',
+      region:unitObj?unitObj.region:'', mustChangePassword:!!rec.mustChangePassword
+    });
+    setView(viewsFor(rec.role)[0]);
+    return {ok:true};
+  }
+
+  // cambio de contraseña propio (incl. obligatorio en primer ingreso)
+  async function changeMyPassword(newPw){
+    const me=userRef.current; if(!me) return {error:'Sesión inválida'};
+    const cur=usersMapRef.current[me.username]||{};
+    const salt=randSalt(); const passHash=await hashPassword(newPw,salt);
+    await writeUserDb(me.username,{...cur,salt,passHash,mustChangePassword:false});
+    setUser(u=>u?{...u,mustChangePassword:false}:u);
+    pushToast('ok','CONTRASEÑA ACTUALIZADA','Tu nueva contraseña quedó activa.');
+    return {ok:true};
+  }
+
+  // --- gestión de usuarios (solo Administrador General) ---
+  async function createUser(data){
+    if(!canManageUsers(userRef.current)) return {error:'Sin permiso'};
+    if(!USERNAME_RE.test(data.username)) return {error:'Usuario inválido (3-32 · letras, números, _ o -)'};
+    if(usersMapRef.current[data.username]) return {error:'Ya existe ese usuario'};
+    if(!data.password||data.password.length<6) return {error:'La contraseña debe tener 6+ caracteres'};
+    if((data.role==='unit'||data.role==='sector') && !data.unit) return {error:'Selecciona la unidad asignada'};
+    const salt=randSalt(); const passHash=await hashPassword(data.password,salt);
+    await writeUserDb(data.username,{
+      username:data.username, name:data.name||data.username, role:data.role,
+      unit:(data.role==='admin'||data.role==='general')?'':data.unit,
+      salt, passHash, mustChangePassword:true, active:true,
+      createdAt:Date.now(), createdBy:userRef.current.name
+    });
+    pushToast('ok','USUARIO CREADO',data.username+' · '+ROLE_LABEL[data.role]);
+    return {ok:true};
+  }
+  async function saveUser(username,patch){
+    if(!canManageUsers(userRef.current)) return {error:'Sin permiso'};
+    const cur=usersMapRef.current[username]; if(!cur) return {error:'No existe'};
+    let extra={};
+    if(patch.password){
+      if(patch.password.length<6) return {error:'La contraseña debe tener 6+ caracteres'};
+      const salt=randSalt();
+      extra={salt,passHash:await hashPassword(patch.password,salt),mustChangePassword:true};
+    }
+    const role=patch.role||cur.role;
+    const unit=(role==='admin'||role==='general')?'':(patch.unit!==undefined?patch.unit:cur.unit);
+    if((role==='unit'||role==='sector') && !unit) return {error:'Selecciona la unidad asignada'};
+    await writeUserDb(username,{
+      ...cur,
+      name:patch.name!==undefined?patch.name:cur.name,
+      role, unit,
+      active:patch.active!==undefined?patch.active:(cur.active!==false),
+      ...extra
+    });
+    pushToast('ok','USUARIO ACTUALIZADO',username);
+    return {ok:true};
+  }
+  async function removeUser(username){
+    if(!canManageUsers(userRef.current)) return {error:'Sin permiso'};
+    if(username===userRef.current.username) return {error:'No puedes eliminar tu propia cuenta'};
+    await deleteUserDb(username);
+    pushToast('ok','USUARIO ELIMINADO',username);
+    return {ok:true};
   }
 
   if(!user) return h(Login,{onLogin:login});
+  if(user.mustChangePassword) return h(ForcePassword,{user,onSubmit:changeMyPassword,onLogout:()=>setUser(null)});
 
-  const mine=airports.filter(a=>a.owner===user.unit);
+  const mine=airports.filter(a=>canEditAirport(user,a)); // aeródromos editables por el rol
   const visible=airports.filter(a=>{
     const q=query.trim().toUpperCase();
     if(filter==='mine' && !watch.includes(a.icao)) return false;
@@ -723,11 +940,19 @@ function App(){
           watch,onAddWatch:addWatch,onRemoveWatch:removeWatch}),
         view==='log' && h(LogView,{logs,user}),
         view==='brief' && h(Briefing,{airports,logs,user,metars}),
+        view==='users' && canManageUsers(user) && h(UsersAdmin,{users,currentUser:user,
+          onNew:()=>setEditingUser({__new:true}),onEdit:u=>setEditingUser(u),onDelete:removeUser}),
       )
     ),
     h(Footer,{user,clock,changedNow,syncMode}),
-    h(MobileTabs,{view,setView,changedNow}),
+    h(MobileTabs,{view,setView,changedNow,user}),
     editing && h(Editor,{ap:editing,user,onClose:()=>setEditing(null),onSave:commitChange}),
+    editingUser && h(UserEditor,{
+      rec:editingUser.__new?null:editingUser, currentUser:user,
+      onClose:()=>setEditingUser(null),
+      onCreate:async d=>{const r=await createUser(d); if(r&&r.ok)setEditingUser(null); return r;},
+      onSave:async (un,p)=>{const r=await saveUser(un,p); if(r&&r.ok)setEditingUser(null); return r;},
+    }),
     h('div',{className:'toasts'}, toasts.map(t=>
       h('div',{key:t.id,className:'toast'+(t.kind==='warn'?' warn':'')},
         h('b',null,t.title), h('span',null,t.msg))))
@@ -738,25 +963,74 @@ function fieldLabel(f){return f==='rwy'?'PISTA':f==='star'?'STAR':f==='app'?'APR
 
 /* ---------------- Login ---------------- */
 function Login({onLogin}){
-  const [unit,setUnit]=useState(null);
-  const [name,setName]=useState('');
+  const [username,setUsername]=useState('');
+  const [password,setPassword]=useState('');
+  const [err,setErr]=useState('');
+  const [busy,setBusy]=useState(false);
+  const submit=async()=>{
+    if(!username.trim()||!password||busy) return;
+    setBusy(true); setErr('');
+    const r=await onLogin(username.trim(),password);
+    setBusy(false);
+    if(r&&r.error) setErr(r.error);
+  };
   return h('div',{className:'login'},
     h('div',{className:'loginbox'},
       h('div',{className:'lh'}, GLYPH,
         h('b',null,'RWYCAST'),
         h('small',null,'SISTEMA OPERACIONAL ATC · CHILE')),
       h('div',{className:'lb'},
-        h('div',{className:'lead'},'Acceso por unidad de control. Cada unidad administra los aeropuertos de su jurisdicción.'),
-        h('div',{className:'unitsel'},
-          UNITS.map(u=>h('button',{key:u.code,className:unit===u.code?'on':'',onClick:()=>setUnit(u.code)},
-            h('span',{className:'uc'},u.code.split('-')[0]),
-            h('span',{className:'un'},u.name)))),
-        h('div',{className:'field role-in'},
-          h('label',null,'Identificación del controlador'),
-          h('input',{value:name,placeholder:'Ej. R. Soto',onChange:e=>setName(e.target.value),
-            onKeyDown:e=>{if(e.key==='Enter'&&unit&&name.trim())onLogin(unit,name.trim());}})),
-        h('button',{className:'btn primary',style:{width:'100%'},disabled:!unit||!name.trim(),
-          onClick:()=>onLogin(unit,name.trim())},'Iniciar sesión operacional')
+        h('div',{className:'lead'},'Acceso con credenciales asignadas. Tu perfil define las unidades y acciones disponibles.'),
+        h('div',{className:'field'},
+          h('label',null,'Usuario'),
+          h('input',{value:username,placeholder:'usuario',autoCapitalize:'none',autoCorrect:'off',spellCheck:false,
+            style:{textTransform:'none',fontSize:14},
+            onChange:e=>setUsername(e.target.value),
+            onKeyDown:e=>{if(e.key==='Enter')document.getElementById('pw-in')&&document.getElementById('pw-in').focus();}})),
+        h('div',{className:'field'},
+          h('label',null,'Contraseña'),
+          h('input',{id:'pw-in',type:'password',value:password,placeholder:'••••••••',
+            style:{fontSize:14},
+            onChange:e=>setPassword(e.target.value),
+            onKeyDown:e=>{if(e.key==='Enter')submit();}})),
+        err && h('div',{style:{fontFamily:'var(--mono)',fontSize:11,color:'var(--red)',marginBottom:14,letterSpacing:'.03em'}},'⚠ '+err),
+        h('button',{className:'btn primary',style:{width:'100%'},disabled:busy||!username.trim()||!password,
+          onClick:submit}, busy?'Verificando…':'Iniciar sesión')
+      )
+    )
+  );
+}
+
+/* ---------------- Cambio de contraseña obligatorio ---------------- */
+function ForcePassword({user,onSubmit,onLogout}){
+  const [p1,setP1]=useState(''); const [p2,setP2]=useState('');
+  const [err,setErr]=useState(''); const [busy,setBusy]=useState(false);
+  const submit=async()=>{
+    if(p1.length<6) return setErr('Mínimo 6 caracteres');
+    if(p1!==p2) return setErr('Las contraseñas no coinciden');
+    setBusy(true); setErr('');
+    const r=await onSubmit(p1); setBusy(false);
+    if(r&&r.error) setErr(r.error);
+  };
+  return h('div',{className:'login'},
+    h('div',{className:'loginbox'},
+      h('div',{className:'lh'}, GLYPH,
+        h('b',null,'RWYCAST'),
+        h('small',null,'CAMBIO DE CONTRASEÑA REQUERIDO')),
+      h('div',{className:'lb'},
+        h('div',{className:'lead'},'Hola '+user.name+'. Define una nueva contraseña para continuar.'),
+        h('div',{className:'field'},
+          h('label',null,'Nueva contraseña'),
+          h('input',{type:'password',value:p1,placeholder:'mínimo 6 caracteres',style:{fontSize:14},
+            onChange:e=>setP1(e.target.value)})),
+        h('div',{className:'field'},
+          h('label',null,'Repetir contraseña'),
+          h('input',{type:'password',value:p2,style:{fontSize:14},
+            onChange:e=>setP2(e.target.value),onKeyDown:e=>{if(e.key==='Enter')submit();}})),
+        err && h('div',{style:{fontFamily:'var(--mono)',fontSize:11,color:'var(--red)',marginBottom:14}},'⚠ '+err),
+        h('button',{className:'btn primary',style:{width:'100%',marginBottom:10},disabled:busy,onClick:submit},
+          busy?'Guardando…':'Guardar y continuar'),
+        h('button',{className:'btn ghost',style:{width:'100%'},onClick:onLogout},'Cancelar y salir')
       )
     )
   );
@@ -764,7 +1038,7 @@ function Login({onLogin}){
 
 /* ---------------- Top Bar ---------------- */
 function TopBar({user,clock,view,setView,unread,onLogout}){
-  const tabs=[['viewer','Visor'],['log','Bitácora'],['brief','Briefing']];
+  const tabs=viewsFor(user.role).map(k=>[k,TAB_LABEL[k]]);
   return h('div',{className:'topbar'},
     h('div',{className:'brand'}, GLYPH, h('div',null,
       h('b',null,'RWYCAST'), h('small',null,'ATC · CHILE'))),
@@ -783,35 +1057,35 @@ function TopBar({user,clock,view,setView,unread,onLogout}){
       h('div',{className:'av'},user.name.replace(/[^A-Za-z]/g,'').slice(0,2).toUpperCase()),
       h('div',{className:'meta'},
         h('b',null,user.name),
-        h('br'),h('span',null,user.unit)))
+        h('br'),h('span',null, user.unit ? (ROLE_SHORT[user.role]+' · '+user.unit) : ROLE_LABEL[user.role])))
   );
 }
 
 /* ---------------- Rail ---------------- */
 function Rail({user,view,setView,mine,changedNow}){
+  const canEdit=user.role==='admin'||user.role==='unit';
   return h('div',{className:'rail'},
     h('div',{className:'sec'},
-      h('div',{className:'eyebrow'},'Unidad activa'),
+      h('div',{className:'eyebrow'}, user.unit?'Unidad activa':'Perfil activo'),
       h('div',{className:'unitcard'},
-        h('div',{className:'code'},user.unit),
-        h('div',{className:'nm'}, UNITS.find(u=>u.code===user.unit)?.name||''),
+        h('div',{className:'code'}, user.unit||'NACIONAL'),
+        h('div',{className:'nm'}, user.unit ? (UNITS.find(u=>u.code===user.unit)?.name||'') : ROLE_LABEL[user.role]),
       ),
-      h('div',{style:{display:'flex',gap:8,marginTop:4}},
+      h('div',{style:{display:'flex',gap:8,marginTop:4,flexWrap:'wrap'}},
         h('span',{className:'pill ok'},'EN SERVICIO'),
-        h('span',{className:'pill off'},user.region))
+        h('span',{className:'pill off'}, ROLE_SHORT[user.role]))
     ),
     h('div',{className:'railnav'},
-      h('button',{className:view==='viewer'?'on':'',onClick:()=>setView('viewer')},
-        Ic.tower({}),'Visor operacional', changedNow>0&&h('span',{className:'badge'},changedNow)),
-      h('button',{className:view==='log'?'on':'',onClick:()=>setView('log')},
-        Ic.log({}),'Bitácora de cambios'),
-      h('button',{className:view==='brief'?'on':'',onClick:()=>setView('brief')},
-        Ic.brief({}),'Briefing de turno'),
+      viewsFor(user.role).map(k=>{
+        const [label,Icon]=RAIL_META[k];
+        return h('button',{key:k,className:view===k?'on':'',onClick:()=>setView(k)},
+          Icon({}), label, (k==='viewer'&&changedNow>0)&&h('span',{className:'badge'},changedNow));
+      })
     ),
-    h('div',{className:'sec',style:{marginTop:'auto',borderTop:'1px solid var(--line)',borderBottom:'none'}},
+    canEdit && h('div',{className:'sec',style:{marginTop:'auto',borderTop:'1px solid var(--line)',borderBottom:'none'}},
       h('div',{className:'eyebrow',style:{marginBottom:8}},'A mi cargo'),
       h('div',{style:{fontFamily:'var(--mono)',fontSize:24,fontWeight:800,color:'var(--phos)',textShadow:'var(--glow)'}}, mine.length),
-      h('div',{style:{fontFamily:'var(--mono)',fontSize:10,color:'var(--ink-faint)',marginTop:4,letterSpacing:'.08em'}}, mine.length===1?'AERÓDROMO':'AERÓDROMOS'))
+      h('div',{style:{fontFamily:'var(--mono)',fontSize:10,color:'var(--ink-faint)',marginTop:4,letterSpacing:'.08em'}}, mine.length===1?'AERÓDROMO EDITABLE':'AERÓDROMOS EDITABLES'))
   );
 }
 
@@ -873,6 +1147,7 @@ function AddPicker({available,onAdd,onClose}){
 
 function AirportCard({a,user,onEdit,metars,onRemove}){
   const owns=a.owner===user.unit;
+  const canEdit=canEditAirport(user,a);
   const m=metars[a.icao];
   const chg=a.changed||[];
   const fld=(key,label,val)=>h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
@@ -885,8 +1160,9 @@ function AirportCard({a,user,onEdit,metars,onRemove}){
         h('div',{className:'nm'},a.name),
         h('div',{className:'city'},a.city.toUpperCase())),
       h('div',{className:'owntag'},
-        owns?h('b',null,'MI UNIDAD'):'ADMIN',
-        owns?'':h('span',null,a.owner))),
+        h('b',null,a.owner),
+        owns?h('span',{style:{color:'var(--phos)'}},'MI UNIDAD')
+            :(user.role==='admin'?h('span',null,'ADMIN'):h('span',null,'')))),
     h('div',{className:'opfields'},
       fld('rwy','Pista en uso', a.rwy),
       fld('star','STAR asignada', a.star),
@@ -900,9 +1176,9 @@ function AirportCard({a,user,onEdit,metars,onRemove}){
       h('span',{className:'by'},'· '+(a.updatedBy||'—')),
       onRemove && h('span',{className:'editlink rm',title:'Quitar de Mi jurisdicción',
         onClick:()=>onRemove(a.icao)},'Quitar'),
-      h('span',{className:'editlink'+(owns?'':' locked'),
-        title:owns?'':'Solo la unidad responsable puede editar',
-        onClick:()=>owns&&onEdit(a)}, owns?'Editar':'Bloqueado'))
+      h('span',{className:'editlink'+(canEdit?'':' locked'),
+        title:canEdit?'':'Tu rol no permite editar este aeródromo',
+        onClick:()=>canEdit&&onEdit(a)}, canEdit?'Editar':'Solo lectura'))
   );
 }
 
@@ -976,14 +1252,15 @@ function LogView({logs,user}){
 /* ---------------- Briefing ---------------- */
 function Briefing({airports,logs,user,metars}){
   const [signed,setSigned]=useState({out:false,in:false});
-  const mine=airports.filter(a=>a.owner===user.unit);
+  // admin/sector/general no tienen "unidad propia": muestran toda la red
+  const mine=user.role==='unit' ? airports.filter(a=>a.owner===user.unit) : airports;
   const ifr=airports.filter(a=>{const m=metars[a.icao];return m&&(m.cat==='IFR'||m.cat==='LIFR');});
   const recent=logs.slice(0,6);
   return h('div',{className:'brief'},
     h('div',{className:'panel',style:{padding:'16px 18px',display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}},
       h('div',null,
         h('div',{className:'eyebrow'},'Briefing de cambio de turno'),
-        h('div',{style:{fontFamily:'var(--mono)',fontSize:20,fontWeight:800,color:'var(--ink)',marginTop:6}},user.unit),
+        h('div',{style:{fontFamily:'var(--mono)',fontSize:20,fontWeight:800,color:'var(--ink)',marginTop:6}}, user.unit||'RED NACIONAL'),
         h('div',{style:{fontFamily:'var(--mono)',fontSize:11,color:'var(--ink-dim)',marginTop:4}},'Generado '+nowZ()+' · turno saliente → entrante')),
       h('span',{className:'pill ok',style:{marginLeft:'auto'}},'LISTO PARA TRASPASO')),
 
@@ -1057,7 +1334,7 @@ function Footer({user,clock,changedNow,syncMode}){
       h('span',{className:'live',style:synced?null:{background:'var(--amber)',boxShadow:'0 0 8px var(--amber)'}}),
       h('b',{style:synced?null:{color:'var(--amber)'}},'RED OPERACIONAL'),
       synced?' · sincronizada':' · modo local (sin sync)'),
-    h('div',{className:'fi'},'UNIDAD: ',h('b',null,'\u00A0'+user.unit)),
+    h('div',{className:'fi'},'UNIDAD: ',h('b',null,'\u00A0'+(user.unit||ROLE_SHORT[user.role]))),
     h('div',{className:'fi'}, changedNow>0?h('span',{style:{color:'var(--amber)'}},'⚠ '+changedNow+' cambio(s) activo(s)'):'Sin alertas activas'),
     h('div',{className:'right'},
       h('div',{className:'fi'},'Protocolos de seguridad'),
@@ -1067,11 +1344,117 @@ function Footer({user,clock,changedNow,syncMode}){
 }
 
 /* ---------------- Mobile Tabs ---------------- */
-function MobileTabs({view,setView,changedNow}){
-  const items=[['viewer','Visor',Ic.tower],['log','Bitácora',Ic.log],['brief','Briefing',Ic.brief]];
+function MobileTabs({view,setView,changedNow,user}){
+  const items=viewsFor(user.role).map(k=>[k,TAB_LABEL[k],RAIL_META[k][1]]);
   return h('div',{className:'mtab'},
     items.map(([k,l,Icon])=>h('button',{key:k,className:view===k?'on':'',onClick:()=>setView(k)},
       Icon({}), l, (k==='viewer'&&changedNow>0)&&h('span',{className:'dot'}))));
+}
+
+/* ---------------- Gestión de usuarios (Administrador General) ---------------- */
+function UsersAdmin({users,currentUser,onNew,onEdit,onDelete}){
+  const list=Object.values(users||{}).sort((a,b)=>
+    (ROLES.indexOf(a.role)+'_'+a.username).localeCompare(ROLES.indexOf(b.role)+'_'+b.username));
+  return h('div',null,
+    h('div',{className:'phead',style:{borderTop:'none'}},
+      h('h3',null,'Gestión de usuarios'),
+      h('span',{className:'sub'}, list.length+' CUENTA'+(list.length===1?'':'S')+' · ACCESO ADMIN')),
+    h('div',{className:'gridwrap'},
+      h('div',{className:'toolbar'},
+        h('button',{className:'filterbtn on',onClick:onNew},'+ Nuevo usuario')),
+      list.length===0
+        ? h('div',{className:'empty'},'No hay usuarios todavía. Crea el primero.')
+        : h('div',{className:'apgrid'},
+            list.map(u=>h('div',{className:'apcard',key:u.username},
+              h('div',{className:'crest'},
+                h('div',null,
+                  h('div',{className:'icao',style:{fontSize:16}}, u.username),
+                  h('div',{className:'nm'}, u.name),
+                  h('div',{className:'city'}, ROLE_LABEL[u.role]||u.role)),
+                h('div',{className:'owntag'},
+                  h('b',null, (u.role==='admin'||u.role==='general')?'—':(u.unit||'—')),
+                  u.active===false
+                    ? h('span',{style:{color:'var(--red)'}},'INACTIVO')
+                    : h('span',{style:{color:'var(--phos)'}},'ACTIVO'))),
+              h('div',{className:'apfoot'},
+                h('span',{className:'age'}, u.mustChangePassword?'⚠ debe cambiar contraseña':('Creado '+ageMin(u.createdAt))),
+                h('span',{className:'editlink',onClick:()=>onEdit(u)},'Editar'),
+                u.username!==currentUser.username && h('span',{className:'editlink rm',
+                  onClick:()=>{ if(window.confirm('¿Eliminar al usuario "'+u.username+'"?')) onDelete(u.username); }},'Eliminar')))))
+    )
+  );
+}
+
+/* ---------------- Editor de usuario (crear / editar) ---------------- */
+function UserEditor({rec,currentUser,onClose,onCreate,onSave}){
+  const isNew=!rec;
+  const [username,setUsername]=useState(rec?rec.username:'');
+  const [name,setName]=useState(rec?rec.name:'');
+  const [role,setRole]=useState(rec?rec.role:'unit');
+  const [unit,setUnit]=useState(rec?(rec.unit||''):'');
+  const [active,setActive]=useState(rec?rec.active!==false:true);
+  const [password,setPassword]=useState('');
+  const [err,setErr]=useState(''); const [busy,setBusy]=useState(false);
+  const needUnit=(role==='unit'||role==='sector');
+  const roleHelp =
+    role==='admin'  ? 'Acceso total: gestiona usuarios y edita cualquier unidad del país.' :
+    role==='unit'   ? 'Edita pistas/STAR/aprox SOLO de su unidad asignada.' :
+    role==='sector' ? 'Solo visualización operativa (sin edición de datos).' :
+                      'Solo accede a la pestaña Briefing de turno.';
+  const submit=async()=>{
+    setBusy(true); setErr('');
+    const r=isNew
+      ? await onCreate({username:username.trim(),name:name.trim(),role,unit,password})
+      : await onSave(rec.username,{name:name.trim(),role,unit,active,password:password||undefined});
+    setBusy(false);
+    if(r&&r.error) setErr(r.error);
+  };
+  return h('div',{className:'scrim',onClick:e=>{if(e.target.className==='scrim')onClose();}},
+    h('div',{className:'drawer'},
+      h('div',{className:'dhead'},
+        h('div',{className:'icao',style:{fontSize:18}}, isNew?'NUEVO':rec.username),
+        h('div',null,
+          h('div',{style:{fontFamily:'var(--mono)',fontSize:11,color:'var(--ink-dim)',letterSpacing:'.04em'}}, isNew?'Crear cuenta':'Editar cuenta'),
+          h('div',{style:{fontFamily:'var(--mono)',fontSize:9.5,color:'var(--ink-faint)',marginTop:3,letterSpacing:'.1em'}},'CONTROL DE ACCESO')),
+        h('button',{className:'x',onClick:onClose},'✕')),
+      h('div',{className:'dbody'},
+        isNew && h('div',{className:'field'},
+          h('label',null,'Usuario ',h('span',{className:'hint'},'3-32 · letras, números, _ o -')),
+          h('input',{value:username,autoCapitalize:'none',autoCorrect:'off',spellCheck:false,
+            style:{textTransform:'none',fontSize:14},onChange:e=>setUsername(e.target.value)})),
+        h('div',{className:'field'},
+          h('label',null,'Nombre para mostrar'),
+          h('input',{value:name,placeholder:'Ej. R. Soto',style:{fontSize:14},onChange:e=>setName(e.target.value)})),
+        h('div',{className:'field'},
+          h('label',null,'Rol'),
+          h('select',{value:role,onChange:e=>setRole(e.target.value)},
+            ROLES.map(r=>h('option',{key:r,value:r},ROLE_LABEL[r])))),
+        needUnit && h('div',{className:'field'},
+          h('label',null,'Unidad asignada'),
+          h('select',{value:unit,onChange:e=>setUnit(e.target.value)},
+            h('option',{value:''},'— Selecciona unidad —'),
+            UNITS.map(u=>h('option',{key:u.code,value:u.code},u.code+' · '+u.name)))),
+        !isNew && h('div',{className:'field'},
+          h('label',null,'Estado de la cuenta'),
+          h('div',{className:'seg'},
+            h('button',{className:active?'on':'',onClick:()=>setActive(true)},'Activo'),
+            h('button',{className:!active?'on':'',onClick:()=>setActive(false)},'Inactivo'))),
+        h('div',{className:'field'},
+          h('label',null, isNew?'Contraseña inicial':'Restablecer contraseña ',
+            !isNew&&h('span',{className:'hint'},'vacío = sin cambio')),
+          h('input',{type:'password',value:password,style:{fontSize:14},
+            placeholder: isNew?'mínimo 6 caracteres':'nueva contraseña (opcional)',
+            onChange:e=>setPassword(e.target.value)})),
+        h('div',{style:{fontFamily:'var(--mono)',fontSize:10,color:'var(--ink-faint)',lineHeight:1.6,
+          border:'1px solid var(--line-soft)',padding:'10px 12px'}}, roleHelp),
+        err && h('div',{style:{fontFamily:'var(--mono)',fontSize:11,color:'var(--red)',marginTop:12}},'⚠ '+err)
+      ),
+      h('div',{className:'dfoot'},
+        h('button',{className:'btn ghost',style:{flex:1},onClick:onClose},'Cancelar'),
+        h('button',{className:'btn primary',style:{flex:2},disabled:busy,onClick:submit},
+          busy?'Guardando…':(isNew?'Crear usuario':'Guardar cambios')))
+    )
+  );
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(h(App));
