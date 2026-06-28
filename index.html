@@ -267,12 +267,13 @@
   .seg button{flex:0 0 auto;font-family:var(--mono);font-size:13px;font-weight:700;padding:9px 13px;border:1px solid var(--line);background:var(--void);color:var(--ink-dim);cursor:pointer;transition:.13s}
   .seg button:hover{color:var(--ink);border-color:var(--ink-faint)}
   .seg button.on{color:var(--void);background:var(--phos);border-color:var(--phos)}
-  .epref{border:1px solid var(--line);background:var(--void)}
-  .eprefrow{display:flex;align-items:center;gap:9px;padding:8px 12px;border-bottom:1px solid var(--line-soft);font-family:var(--mono);font-size:13px}
-  .eprefrow:last-child{border-bottom:none}
-  .eprefrow b{color:var(--phos);min-width:64px}
-  .eprefrow span{color:var(--ink-faint)}
-  .eprefrow .s{color:var(--ink);font-weight:700}
+  /* selector de STAR en uso por punto de entrada (editor operacional) */
+  .epuse{border:1px solid var(--line);background:var(--void)}
+  .epuserow{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line-soft);flex-wrap:wrap}
+  .epuserow:last-child{border-bottom:none}
+  .epusep{font-family:var(--mono);font-size:13px;font-weight:800;color:var(--phos);min-width:62px;letter-spacing:.04em}
+  .epuserow .seg{flex:1}
+  .epusenone{font-family:var(--mono);font-size:10.5px;color:var(--amber)}
   .dfoot{padding:16px 20px;border-top:1px solid var(--line);display:flex;gap:10px}
   .btn{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;padding:12px 18px;cursor:pointer;border:1px solid;transition:.14s}
   .btn.primary{background:var(--phos);border-color:var(--phos);color:var(--void)}
@@ -505,33 +506,35 @@ const UNITS = [
      eps          → puntos de entrada (IAF)
      stars        → [{name, eps:[...]}] cada STAR sirve a uno o más puntos de entrada
    Operación (puede haber más de una en uso):
-     rwyu / appu  → pistas y aproximaciones EN USO */
+     rwyu / appu  → pistas y aproximaciones EN USO
+     epuse        → {puntoEntrada: STAR en uso} — una STAR en uso por punto de entrada */
 const AIRPORTS = [
   {icao:'SCEL', city:'Santiago', name:'A. Merino Benítez', owner:'SCEL-TWR',
    rwys:['17L','17R','35L','35R'], apps:['ILS Z 17L','ILS Y 17R','RNP 35L','VOR 17R'],
    eps:['DOSO','IMLA','MORLA','TANGO'],
    stars:[{name:'DOSO1A',eps:['DOSO']},{name:'IMLA2B',eps:['IMLA','MORLA']},{name:'MORLA1C',eps:['MORLA']},{name:'TANGO3A',eps:['TANGO']}],
-   rwyu:['17L','17R'], appu:['ILS Z 17L','ILS Y 17R']},
+   rwyu:['17L','17R'], appu:['ILS Z 17L','ILS Y 17R'],
+   epuse:{DOSO:'DOSO1A',IMLA:'IMLA2B',MORLA:'MORLA1C',TANGO:'TANGO3A'}},
   {icao:'SCDA', city:'Iquique', name:'Diego Aracena', owner:'SCDA-TWR',
    rwys:['06','24'], apps:['ILS 06','RNP 24','VOR 06'],
    eps:['UNGO','VITER'], stars:[{name:'UNGO1A',eps:['UNGO']},{name:'VITER2B',eps:['VITER']}],
-   rwyu:['06'], appu:['ILS 06']},
+   rwyu:['06'], appu:['ILS 06'], epuse:{UNGO:'UNGO1A',VITER:'VITER2B'}},
   {icao:'SCFA', city:'Antofagasta', name:'Cerro Moreno', owner:'SCFA-TWR',
    rwys:['01','19'], apps:['ILS 19','RNP 01','VOR 19'],
    eps:['MORNO','ASTOR'], stars:[{name:'MORNO1A',eps:['MORNO']},{name:'ASTOR2C',eps:['ASTOR']}],
-   rwyu:['19'], appu:['ILS 19']},
+   rwyu:['19'], appu:['ILS 19'], epuse:{MORNO:'MORNO1A',ASTOR:'ASTOR2C'}},
   {icao:'SCIE', city:'Concepción', name:'Carriel Sur', owner:'SCIE-TWR',
    rwys:['02','20'], apps:['ILS 20','RNP 02','VOR 20'],
    eps:['CARSU','BIOBI'], stars:[{name:'CARSU1A',eps:['CARSU']},{name:'BIOBI2B',eps:['BIOBI']}],
-   rwyu:['20'], appu:['ILS 20']},
+   rwyu:['20'], appu:['ILS 20'], epuse:{CARSU:'CARSU1A',BIOBI:'BIOBI2B'}},
   {icao:'SCTE', city:'Puerto Montt', name:'El Tepual', owner:'SCTE-TWR',
    rwys:['07','17','25','35'], apps:['ILS 17','RNP 35','VOR 25'],
    eps:['TEPUL','LLANQ'], stars:[{name:'TEPUL1A',eps:['TEPUL']},{name:'LLANQ2B',eps:['LLANQ']}],
-   rwyu:['17'], appu:['ILS 17']},
+   rwyu:['17'], appu:['ILS 17'], epuse:{TEPUL:'TEPUL1A',LLANQ:'LLANQ2B'}},
   {icao:'SCCI', city:'Punta Arenas', name:'Presidente C. Ibáñez', owner:'SCCI-TWR',
    rwys:['07','12','25','30'], apps:['ILS 07','RNP 25','VOR 12'],
    eps:['MAGAL','STREE'], stars:[{name:'MAGAL1A',eps:['MAGAL']},{name:'STREE2B',eps:['STREE']}],
-   rwyu:['07'], appu:['ILS 07']},
+   rwyu:['07'], appu:['ILS 07'], epuse:{MAGAL:'MAGAL1A',STREE:'STREE2B'}},
 ];
 
 /* METAR en vivo: ya NO se usan datos sintéticos. El job de GitHub Actions
@@ -862,6 +865,7 @@ function App(){
           const changed=[];
           if(old && signal){
             ['rwyu','appu'].forEach(f=>{ if((old[f]||[]).join('|')!==(na[f]||[]).join('|')) changed.push(f); });
+            if(JSON.stringify(old.epuse||{})!==JSON.stringify(na.epuse||{})) changed.push('epuse');
           }
           // el parpadeo persiste hasta que se acuse (no se auto-borra)
           return {...na, changed: signal ? (changed.length?changed:(old?old.changed:[])) : [] };
@@ -963,10 +967,11 @@ function App(){
     // reconcilia la operación vigente (en uso) a lo que sigue existiendo en el catálogo
     let rwyu=(target.rwyu||[]).filter(x=>rwys.includes(x)); if(!rwyu.length) rwyu=[rwys[0]];
     const appu=(target.appu||[]).filter(x=>apps.includes(x));
+    const epuse=reconcileEpUse(eps,stars,target.epuse);
     const ts=Date.now();
     const stamp=user.unit||ROLE_SHORT[user.role]||'ADMIN';
     const newAirports=airports.map(a=>a.icao===icao
-      ? {...a,rwys,apps,eps,stars,rwyu,appu,updatedAt:ts,updatedBy:user.name+' · '+stamp,changed:[]}
+      ? {...a,rwys,apps,eps,stars,rwyu,appu,epuse,updatedAt:ts,updatedBy:user.name+' · '+stamp,changed:[]}
       : a);
     const summary='Catálogo · '+diff.map(d=>fieldLabel(d.field)).join(', ')+' actualizado';
     const logEntry={id:ts,type:'cat',icao,unit:user.unit||stamp,user:user.name,ts,diff,summary,zulu:nowZ()};
@@ -993,7 +998,7 @@ function App(){
     const stamp=user.unit||ROLE_SHORT[user.role]||'ADMIN';
     // la unidad propietaria es el propio aeródromo (su OACI): se crea como nueva unidad
     const newAp={icao, city:(data.city||'').trim(), name:(data.name||'').trim()||icao, owner:icao,
-      rwys, apps, eps, stars, rwyu:[rwys[0]], appu:apps.length?[apps[0]]:[],
+      rwys, apps, eps, stars, rwyu:[rwys[0]], appu:apps.length?[apps[0]]:[], epuse:reconcileEpUse(eps,stars,{}),
       updatedAt:ts, updatedBy:user.name+' · '+stamp, changed:[]};
     const newAirports=[...airports,newAp];
     const logEntry={id:ts,type:'cat',icao,unit:user.unit||stamp,user:user.name,ts,
@@ -1147,7 +1152,7 @@ function App(){
 }
 
 function fieldLabel(f){
-  return f==='rwyu'?'PISTAS EN USO':f==='appu'?'APROX. EN USO':
+  return f==='rwyu'?'PISTAS EN USO':f==='appu'?'APROX. EN USO':f==='epuse'?'STAR EN USO':
          f==='rwys'?'PISTAS':f==='apps'?'APROX.':f==='eps'?'PTOS. ENTRADA':f==='stars'?'STARS':
          f==='alta'?'ALTA':f==='baja'?'BAJA':f;
 }
@@ -1175,6 +1180,16 @@ function cleanStars(arr, eps){
 function starsStr(arr){ return (arr||[]).map(s=>s.name+'['+(s.eps||[]).join('/')+']').join(', '); }
 // STARs que sirven a un punto de entrada dado
 function starsForEp(stars, ep){ return (stars||[]).filter(s=>(s.eps||[]).includes(ep)).map(s=>s.name); }
+// reconcilia la STAR en uso por punto de entrada contra el catálogo vigente
+function reconcileEpUse(eps, stars, prev){
+  const out={};
+  (eps||[]).forEach(ep=>{
+    const serving=starsForEp(stars,ep), cur=(prev||{})[ep];
+    out[ep] = (cur && serving.includes(cur)) ? cur : (serving[0]||'');
+  });
+  return out;
+}
+function epUseStr(eps, m){ return (eps||[]).map(ep=>ep+'/'+((m&&m[ep])||'—')).join(', '); }
 
 /* ---------------- Login ---------------- */
 function Login({onLogin}){
@@ -1349,14 +1364,14 @@ function AirportCard({a,user,onEdit,metars,onRemove}){
       fld('appu','Aproximación', (a.appu||[]).join(' / '))),
     (a.eps&&a.eps.length>0) && h('div',{className:'eplist'},
       a.eps.map((ep,i)=>{
-        const ss=starsForEp(a.stars,ep);
+        const inUse=(a.epuse||{})[ep]||'';
         return h('div',{className:'eprow',key:i},
           h('div',{className:'epf'},
             h('div',{className:'k'},'Punto de entrada'),
             h('div',{className:'val'+(ep?'':' empty')}, ep||'—')),
           h('div',{className:'epf'},
-            h('div',{className:'k'},'STAR'),
-            h('div',{className:'val'+(ss.length?'':' empty')}, ss.length?ss.join(', '):'—')));
+            h('div',{className:'k'},'STAR en uso'),
+            h('div',{className:'val'+(inUse?'':' empty')}, inUse||'—')));
       })),
     m && h('div',{className:'metarline'},
       m.cat && h('span',{className:'fr '+m.cat},m.cat),
@@ -1377,12 +1392,15 @@ function AirportCard({a,user,onEdit,metars,onRemove}){
 function Editor({ap,user,onClose,onSave}){
   const [rwyu,setRwyu]=useState(ap.rwyu||[]);
   const [appu,setAppu]=useState(ap.appu||[]);
+  const [epuse,setEpuse]=useState(ap.epuse||{});
   const diff=[];
   const cmpUse=(field,oldArr,newArr)=>{
     const a=(oldArr||[]).join(' / '), b=(newArr||[]).join(' / ');
     if(a!==b) diff.push({field,from:a||'—',to:b||'—'});
   };
   cmpUse('rwyu',ap.rwyu,rwyu); cmpUse('appu',ap.appu,appu);
+  if(epUseStr(ap.eps,ap.epuse)!==epUseStr(ap.eps,epuse))
+    diff.push({field:'epuse',from:epUseStr(ap.eps,ap.epuse),to:epUseStr(ap.eps,epuse)});
 
   // selección múltiple: alterna la pertenencia de cada opción en el arreglo "en uso"
   const segMulti=(label,opts,sel,set)=>h('div',{className:'field'},
@@ -1407,12 +1425,17 @@ function Editor({ap,user,onClose,onSave}){
         segMulti('Pistas en uso', ap.rwys, rwyu, setRwyu),
         segMulti('Aproximaciones en uso', ap.apps, appu, setAppu),
         (ap.eps&&ap.eps.length>0) && h('div',{className:'field'},
-          h('label',null,'Puntos de entrada ',h('span',{className:'hint'},'según catálogo')),
-          h('div',{className:'epref'},
+          h('label',null,'STAR en uso por punto de entrada ',h('span',{className:'hint'},'una por punto')),
+          h('div',{className:'epuse'},
             ap.eps.map((ep,i)=>{
-              const ss=starsForEp(ap.stars,ep);
-              return h('div',{className:'eprefrow',key:i},
-                h('b',null,ep||'—'), h('span',null,'→'), h('span',{className:'s'}, ss.length?ss.join(', '):'—'));
+              const opts=starsForEp(ap.stars,ep);
+              return h('div',{className:'epuserow',key:i},
+                h('div',{className:'epusep'}, ep),
+                opts.length===0
+                  ? h('span',{className:'epusenone'},'sin STAR en catálogo')
+                  : h('div',{className:'seg'}, opts.map(o=>h('button',{key:o,
+                      className:(epuse[ep]===o)?'on':'',
+                      onClick:()=>setEpuse({...epuse,[ep]:o})},o))));
             }))),
         h('div',{className:'field'},
           h('label',null,'Observación operacional ',h('span',{className:'hint'},'opcional')),
@@ -1421,7 +1444,7 @@ function Editor({ap,user,onClose,onSave}){
       h('div',{className:'dfoot'},
         h('button',{className:'btn ghost',style:{flex:1},onClick:onClose},'Cancelar'),
         h('button',{className:'btn primary',style:{flex:2},disabled:diff.length===0||rwyu.length===0,
-          onClick:()=>onSave(ap.icao,{rwyu,appu},diff)},
+          onClick:()=>onSave(ap.icao,{rwyu,appu,epuse},diff)},
           rwyu.length===0?'Selecciona pista en uso'
             :(diff.length?('Publicar '+diff.length+' cambio'+(diff.length>1?'s':'')):'Sin cambios')))
     )
@@ -1472,7 +1495,7 @@ function Briefing({airports,logs,user,metars}){
         mine.map(a=>h('div',{className:'brrow',key:a.icao},
           h('span',{className:'ic'},a.icao),
           h('span',{className:'tx'},'Pista ',h('b',null,(a.rwyu||[]).join(' / ')||'—'),' · Aprox ',h('b',null,(a.appu||[]).join(' / ')||'—'),
-            (a.eps&&a.eps.length)?' · Entradas: '+a.eps.map(ep=>ep+'/'+(starsForEp(a.stars,ep).join('-')||'—')).join(', '):''),
+            (a.eps&&a.eps.length)?' · Entradas: '+a.eps.map(ep=>ep+'/'+((a.epuse||{})[ep]||'—')).join(', '):''),
           (a.changed&&a.changed.length)?h('span',{className:'tg'},'CAMBIO RECIENTE'):null)))),
 
     h('div',{className:'brsec'},
