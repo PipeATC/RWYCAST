@@ -942,12 +942,12 @@ function App(){
     const icao=(data.icao||'').trim().toUpperCase();
     if(!/^[A-Z0-9]{3,5}$/.test(icao)) return {error:'OACI inválido (3-5 caracteres alfanuméricos)'};
     if(airports.some(a=>a.icao===icao)) return {error:'Ya existe un aeródromo con ese OACI'};
-    if(!data.owner) return {error:'Selecciona la unidad propietaria'};
     const rwys=cleanList(data.rwys), stars=cleanList(data.stars), apps=cleanList(data.apps);
     if(!rwys.length) return {error:'Debe existir al menos una pista'};
     const ts=Date.now();
     const stamp=user.unit||ROLE_SHORT[user.role]||'ADMIN';
-    const newAp={icao, city:(data.city||'').trim(), name:(data.name||'').trim()||icao, owner:data.owner,
+    // la unidad propietaria es el propio aeródromo (su OACI): se crea como nueva unidad
+    const newAp={icao, city:(data.city||'').trim(), name:(data.name||'').trim()||icao, owner:icao,
       rwys, stars, apps, rwy:rwys[0], star:stars[0]||'', app:apps[0]||'',
       updatedAt:ts, updatedBy:user.name+' · '+stamp, changed:[]};
     const newAirports=[...airports,newAp];
@@ -1597,14 +1597,13 @@ function AirportEditor({user,onClose,onCreate}){
   const [icao,setIcao]=useState('');
   const [city,setCity]=useState('');
   const [name,setName]=useState('');
-  const [owner,setOwner]=useState('');
   const [rwys,setRwys]=useState(['']);
   const [stars,setStars]=useState([]);
   const [apps,setApps]=useState([]);
   const [err,setErr]=useState(''); const [busy,setBusy]=useState(false);
   const submit=async()=>{
     setBusy(true); setErr('');
-    const r=await onCreate({icao,city,name,owner,rwys,stars,apps});
+    const r=await onCreate({icao,city,name,rwys,stars,apps});
     setBusy(false);
     if(r&&r.error) setErr(r.error);
   };
@@ -1627,11 +1626,6 @@ function AirportEditor({user,onClose,onCreate}){
         h('div',{className:'field'},
           h('label',null,'Nombre del aeródromo'),
           h('input',{value:name,placeholder:'A. Merino Benítez',style:{fontSize:14},onChange:e=>setName(e.target.value)})),
-        h('div',{className:'field'},
-          h('label',null,'Unidad propietaria'),
-          h('select',{value:owner,onChange:e=>setOwner(e.target.value)},
-            h('option',{value:''},'— Selecciona unidad —'),
-            UNITS.map(u=>h('option',{key:u.code,value:u.code},u.code+' · '+u.name)))),
         h(ListEditor,{label:'Pistas', items:rwys, onChange:setRwys, placeholder:'Ej. 17L', className:'catcol bare'}),
         h(ListEditor,{label:'STAR', items:stars, onChange:setStars, placeholder:'Ej. DOSO1A', className:'catcol bare'}),
         h(ListEditor,{label:'Aproximaciones', items:apps, onChange:setApps, placeholder:'Ej. ILS Z 17L', className:'catcol bare'}),
