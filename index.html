@@ -687,6 +687,9 @@ const RAIL_META={
   users:['Gestión de usuarios',Ic.users],
 };
 
+// Roles que se asignan a una unidad aeroportuaria específica (unidad y general)
+function roleNeedsUnit(role){ return role==='unit'||role==='general'; }
+
 // Pestañas permitidas por rol (control de rutas / navegación)
 function viewsFor(role){
   switch(role){
@@ -1101,11 +1104,11 @@ function App(){
     if(!USERNAME_RE.test(data.username)) return {error:'Usuario inválido (3-32 · letras, números, _ o -)'};
     if(usersMapRef.current[data.username]) return {error:'Ya existe ese usuario'};
     if(!data.password||data.password.length<6) return {error:'La contraseña debe tener 6+ caracteres'};
-    if(data.role==='unit' && !data.unit) return {error:'Selecciona la unidad asignada'};
+    if(roleNeedsUnit(data.role) && !data.unit) return {error:'Selecciona la unidad asignada'};
     const salt=randSalt(); const passHash=await hashPassword(data.password,salt);
     await writeUserDb(data.username,{
       username:data.username, name:data.name||data.username, role:data.role,
-      unit: data.role==='unit' ? data.unit : '',   // solo el usuario de unidad tiene unidad asignada
+      unit: roleNeedsUnit(data.role) ? data.unit : '',   // unidad y general se asignan a una unidad
       salt, passHash, mustChangePassword:true, active:true,
       createdAt:Date.now(), createdBy:userRef.current.name
     });
@@ -1122,8 +1125,8 @@ function App(){
       extra={salt,passHash:await hashPassword(patch.password,salt),mustChangePassword:true};
     }
     const role=patch.role||cur.role;
-    const unit = role==='unit' ? (patch.unit!==undefined?patch.unit:cur.unit) : '';
-    if(role==='unit' && !unit) return {error:'Selecciona la unidad asignada'};
+    const unit = roleNeedsUnit(role) ? (patch.unit!==undefined?patch.unit:cur.unit) : '';
+    if(roleNeedsUnit(role) && !unit) return {error:'Selecciona la unidad asignada'};
     await writeUserDb(username,{
       ...cur,
       name:patch.name!==undefined?patch.name:cur.name,
@@ -1517,8 +1520,8 @@ function LogView({logs,user}){
 /* ---------------- Briefing ---------------- */
 function Briefing({airports,logs,user,metars}){
   const [signed,setSigned]=useState({out:false,in:false});
-  // admin/sector/general no tienen "unidad propia": muestran toda la red
-  const mine=user.role==='unit' ? airports.filter(a=>a.owner===user.unit) : airports;
+  // con unidad asignada (unidad/general) → su jurisdicción; admin/sector → toda la red
+  const mine=user.unit ? airports.filter(a=>a.owner===user.unit) : airports;
   const ifr=airports.filter(a=>{const m=metars[a.icao];return m&&(m.cat==='IFR'||m.cat==='LIFR');});
   const recent=logs.slice(0,6);
   return h('div',{className:'brief'},
@@ -1803,7 +1806,7 @@ function UsersAdmin({users,currentUser,onNew,onEdit,onDelete}){
                   h('div',{className:'nm'}, u.name),
                   h('div',{className:'city'}, ROLE_LABEL[u.role]||u.role)),
                 h('div',{className:'owntag'},
-                  h('b',null, (u.role==='admin'||u.role==='general')?'—':(u.unit||'—')),
+                  h('b',null, roleNeedsUnit(u.role)?(u.unit||'—'):'—'),
                   u.active===false
                     ? h('span',{style:{color:'var(--red)'}},'INACTIVO')
                     : h('span',{style:{color:'var(--phos)'}},'ACTIVO'))),
@@ -1826,7 +1829,7 @@ function UserEditor({rec,currentUser,airports,onClose,onCreate,onSave}){
   const [active,setActive]=useState(rec?rec.active!==false:true);
   const [password,setPassword]=useState('');
   const [err,setErr]=useState(''); const [busy,setBusy]=useState(false);
-  const needUnit=(role==='unit');   // solo el usuario de unidad se asigna a una unidad
+  const needUnit=roleNeedsUnit(role);   // unidad y general se asignan a una unidad
   // unidades disponibles = aeródromos del catálogo (dedup por propietario)
   const unitOpts=Array.from(new Map(
     (airports||[]).map(a=>[a.owner,{code:a.owner,label:a.icao+' · '+a.name}])).values());
@@ -1836,7 +1839,7 @@ function UserEditor({rec,currentUser,airports,onClose,onCreate,onSave}){
     role==='admin'  ? 'Acceso total: gestiona usuarios y edita cualquier unidad del país.' :
     role==='unit'   ? 'Edita pistas/STAR/aprox SOLO de su unidad asignada.' :
     role==='sector' ? 'Solo visualización operativa (sin edición de datos).' :
-                      'Solo accede a la pestaña Briefing de turno.';
+                      'Solo accede al Briefing de turno de su unidad asignada.';
   const submit=async()=>{
     setBusy(true); setErr('');
     const r=isNew
