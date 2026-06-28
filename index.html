@@ -153,6 +153,9 @@
   .filterbtn{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;padding:9px 13px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-dim);cursor:pointer;transition:.14s}
   .filterbtn:hover{color:var(--ink);border-color:var(--ink-faint)}
   .filterbtn.on{color:var(--phos);border-color:var(--phos);background:rgba(63,240,168,.06)}
+  .toolbar select{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:9px 13px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-dim);cursor:pointer;outline:none;transition:.14s}
+  .toolbar select:hover{color:var(--ink);border-color:var(--ink-faint)}
+  .toolbar select:focus{border-color:var(--phos);color:var(--ink)}
 
   .apgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
 
@@ -1850,17 +1853,36 @@ function AirportEditor({user,onClose,onCreate}){
 
 /* ---------------- Gestión de usuarios (Administrador General) ---------------- */
 function UsersAdmin({users,currentUser,onNew,onEdit,onDelete}){
-  const list=Object.values(users||{}).sort((a,b)=>
-    (ROLES.indexOf(a.role)+'_'+a.username).localeCompare(ROLES.indexOf(b.role)+'_'+b.username));
+  const [q,setQ]=useState('');
+  const [roleF,setRoleF]=useState('');     // filtro por tipo de usuario (rol)
+  const [unitF,setUnitF]=useState('');     // filtro por unidad a la que pertenece
+  const all=Object.values(users||{});
+  // unidades presentes entre los usuarios (alimenta el selector de filtro por unidad)
+  const unitSet=Array.from(new Set(all.flatMap(u=>userUnits(u)))).sort();
+  const qq=q.trim().toLowerCase();
+  const list=all
+    .filter(u=> !qq || (u.username||'').toLowerCase().includes(qq) || (u.name||'').toLowerCase().includes(qq))
+    .filter(u=> !roleF || u.role===roleF)
+    .filter(u=> !unitF || userUnits(u).includes(unitF))
+    .sort((a,b)=>(ROLES.indexOf(a.role)+'_'+a.username).localeCompare(ROLES.indexOf(b.role)+'_'+b.username));
+  const total=all.length;
   return h('div',null,
     h('div',{className:'phead',style:{borderTop:'none'}},
       h('h3',null,'Gestión de usuarios'),
-      h('span',{className:'sub'}, list.length+' CUENTA'+(list.length===1?'':'S')+' · ACCESO ADMIN')),
+      h('span',{className:'sub'}, list.length+' / '+total+' CUENTA'+(total===1?'':'S')+' · ACCESO ADMIN')),
     h('div',{className:'gridwrap'},
       h('div',{className:'toolbar'},
-        h('button',{className:'filterbtn on',onClick:onNew},'+ Nuevo usuario')),
+        h('button',{className:'filterbtn on',onClick:onNew},'+ Nuevo usuario'),
+        h('div',{className:'search'}, Ic.search({}),
+          h('input',{value:q,placeholder:'Buscar usuario / nombre…',onChange:e=>setQ(e.target.value)})),
+        h('select',{value:roleF,onChange:e=>setRoleF(e.target.value),title:'Filtrar por tipo de usuario'},
+          h('option',{value:''},'Todos los roles'),
+          ROLES.map(r=>h('option',{key:r,value:r},ROLE_LABEL[r]))),
+        h('select',{value:unitF,onChange:e=>setUnitF(e.target.value),title:'Filtrar por unidad'},
+          h('option',{value:''},'Todas las unidades'),
+          unitSet.map(u=>h('option',{key:u,value:u},u)))),
       list.length===0
-        ? h('div',{className:'empty'},'No hay usuarios todavía. Crea el primero.')
+        ? h('div',{className:'empty'}, total===0?'No hay usuarios todavía. Crea el primero.':'Ningún usuario coincide con los filtros.')
         : h('div',{className:'apgrid'},
             list.map(u=>h('div',{className:'apcard',key:u.username},
               h('div',{className:'crest'},
