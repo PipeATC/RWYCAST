@@ -786,8 +786,13 @@ function ageMin(ts){if(!ts)return '—';const m=Math.floor((Date.now()-ts)/60000
 /* ============================================================
    APP
    ============================================================ */
+const SESSION_KEY='runcast:session';   // sesión recordada ("mantener sesión iniciada")
+
 function App(){
-  const [user,setUser]=useState(null);
+  // restaura la sesión recordada en el dispositivo (si el usuario marcó la casilla)
+  const [user,setUser]=useState(()=>{
+    try{ return JSON.parse(localStorage.getItem(SESSION_KEY)||'null'); }catch(e){ return null; }
+  });
   const [airports,setAirports]=useState(()=>AIRPORTS.map(a=>({...a,updatedAt:Date.now()-Math.floor(Math.random()*4000000),updatedBy:'sistema',changed:[]})));
   const [logs,setLogs]=useState([]);
   const [view,setView]=useState('viewer');
@@ -835,6 +840,23 @@ function App(){
   useEffect(()=>{
     if(user && !viewsFor(user.role).includes(view)) setView(viewsFor(user.role)[0]);
   },[user,view]);
+
+  // mantiene actualizada la sesión recordada (solo si existe) cuando cambia el perfil,
+  // p. ej. al limpiar mustChangePassword tras un cambio de contraseña.
+  useEffect(()=>{
+    try{
+      if(user && localStorage.getItem(SESSION_KEY)) localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    }catch(e){}
+  },[user]);
+
+  // revalida la sesión recordada contra la base de usuarios ya sincronizada:
+  // si la cuenta fue eliminada o desactivada, cierra la sesión automáticamente.
+  useEffect(()=>{
+    const u=userRef.current;
+    if(!u || !users || !Object.keys(users).length) return;
+    const rec=users[u.username];
+    if(!rec || rec.active===false) logout();
+  },[users]);
 
   // watchlist personal por unidad (persistida en el dispositivo)
   useEffect(()=>{
@@ -1035,19 +1057,31 @@ function App(){
 
   // autenticación: valida credenciales contra la base de usuarios y, recién
   // autenticado, fija perfil (rol/unidad) y la vista inicial según atribuciones
-  async function login(username,password){
+  async function login(username,password,remember){
     const rec=(usersMapRef.current||{})[username];
     if(!rec) return {error:'Usuario no encontrado'};
     if(rec.active===false) return {error:'Usuario inactivo. Contacta al administrador.'};
     const hash=await hashPassword(password, rec.salt||'');
     if(hash!==rec.passHash) return {error:'Contraseña incorrecta'};
     const unitObj=UNITS.find(x=>x.code===rec.unit);
-    setUser({
+    const profile={
       username, name:rec.name, role:rec.role, unit:rec.unit||'',
       region:unitObj?unitObj.region:'', mustChangePassword:!!rec.mustChangePassword
-    });
+    };
+    setUser(profile);
+    // "Mantener sesión iniciada": persiste el perfil (sin contraseña) en el dispositivo.
+    try{
+      if(remember) localStorage.setItem(SESSION_KEY, JSON.stringify(profile));
+      else localStorage.removeItem(SESSION_KEY);
+    }catch(e){}
     setView(viewsFor(rec.role)[0]);
     return {ok:true};
+  }
+
+  // cierre de sesión: limpia el estado y la sesión recordada del dispositivo
+  function logout(){
+    try{ localStorage.removeItem(SESSION_KEY); }catch(e){}
+    setUser(null);
   }
 
   // cambio de contraseña propio (incl. obligatorio en primer ingreso)
@@ -1109,7 +1143,7 @@ function App(){
   }
 
   if(!user) return h(Login,{onLogin:login});
-  if(user.mustChangePassword) return h(ForcePassword,{user,onSubmit:changeMyPassword,onLogout:()=>setUser(null)});
+  if(user.mustChangePassword) return h(ForcePassword,{user,onSubmit:changeMyPassword,onLogout:logout});
 
   const mine=airports.filter(a=>canEditAirport(user,a)); // aeródromos editables por el rol
   const visible=airports.filter(a=>{
@@ -1121,7 +1155,7 @@ function App(){
   const changedNow=airports.filter(a=>a.changed&&a.changed.length).length;
 
   return h('div',{style:{display:'contents'}},
-    h(TopBar,{user,clock,view,setView,unread,onLogout:()=>setUser(null)}),
+    h(TopBar,{user,clock,view,setView,unread,onLogout:logout}),
     h('div',{className:'stage'},
       h('div',{className:'content'},
         alerts.length>0 && h(AlertBanner,{alerts,onAck:ackAlert,onAckAll:ackAll}),
@@ -1195,12 +1229,13 @@ function epUseStr(eps, m){ return (eps||[]).map(ep=>ep+'/'+((m&&m[ep])||'—')).
 function Login({onLogin}){
   const [username,setUsername]=useState('');
   const [password,setPassword]=useState('');
+  const [remember,setRemember]=useState(false);
   const [err,setErr]=useState('');
   const [busy,setBusy]=useState(false);
   const submit=async()=>{
     if(!username.trim()||!password||busy) return;
     setBusy(true); setErr('');
-    const r=await onLogin(username.trim(),password);
+    const r=await onLogin(username.trim(),password,remember);
     setBusy(false);
     if(r&&r.error) setErr(r.error);
   };
@@ -1223,6 +1258,11 @@ function Login({onLogin}){
             style:{fontSize:14},
             onChange:e=>setPassword(e.target.value),
             onKeyDown:e=>{if(e.key==='Enter')submit();}})),
+        h('label',{style:{display:'flex',alignItems:'center',gap:8,cursor:'pointer',marginBottom:14,
+            fontFamily:'var(--mono)',fontSize:11,color:'var(--ink-dim)',letterSpacing:'.04em',userSelect:'none'}},
+          h('input',{type:'checkbox',checked:remember,style:{width:14,height:14,accentColor:'var(--phos)',cursor:'pointer'},
+            onChange:e=>setRemember(e.target.checked)}),
+          'Mantener sesión iniciada'),
         err && h('div',{style:{fontFamily:'var(--mono)',fontSize:11,color:'var(--red)',marginBottom:14,letterSpacing:'.03em'}},'⚠ '+err),
         h('button',{className:'btn primary',style:{width:'100%'},disabled:busy||!username.trim()||!password,
           onClick:submit}, busy?'Verificando…':'Iniciar sesión')
