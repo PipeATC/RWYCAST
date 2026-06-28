@@ -689,6 +689,13 @@ const RAIL_META={
 
 // Roles que se asignan a una unidad aeroportuaria específica (unidad y general)
 function roleNeedsUnit(role){ return role==='unit'||role==='general'; }
+// Unidades aeroportuarias que gestiona el usuario. El usuario de unidad puede tener
+// varias (units[]); general una. Acepta tanto un perfil de sesión como un registro DB.
+function userUnits(u){
+  if(!u) return [];
+  if(Array.isArray(u.units) && u.units.length) return u.units;
+  return u.unit ? [u.unit] : [];
+}
 
 // Pestañas permitidas por rol (control de rutas / navegación)
 function viewsFor(role){
@@ -703,7 +710,7 @@ function viewsFor(role){
 function canEditAirport(user,ap){
   if(!user||!ap) return false;
   if(user.role==='admin') return true;            // total: cualquier unidad
-  if(user.role==='unit')  return ap.owner===user.unit; // solo su unidad
+  if(user.role==='unit')  return userUnits(user).includes(ap.owner); // solo sus unidades
   return false;                                    // sector / general → lectura
 }
 function canManageUsers(user){ return !!user && user.role==='admin'; }
@@ -866,7 +873,8 @@ function App(){
     if(!user) return;
     let saved=null;
     try{ saved=JSON.parse(localStorage.getItem('runcast:watch:'+user.username)||'null'); }catch(e){}
-    const def = user.role==='unit' ? AIRPORTS.filter(a=>a.owner===user.unit).map(a=>a.icao)
+    const myUnits=userUnits(user);
+    const def = user.role==='unit' ? AIRPORTS.filter(a=>myUnits.includes(a.owner)).map(a=>a.icao)
               : user.role==='general' ? []
               : AIRPORTS.map(a=>a.icao);   // admin / sector observan toda la red
     setWatch(Array.isArray(saved) ? saved : def);
@@ -904,7 +912,8 @@ function App(){
     if(!signal){ logs.forEach(l=>seenLogs.current.add(l.id)); return; }
 
     // eventos nuevos de OTRAS unidades → alerta persistente + toast
-    const fresh=logs.filter(l=> !seenLogs.current.has(l.id) && (!me || l.unit!==me.unit));
+    const myUnits=userUnits(me);
+    const fresh=logs.filter(l=> !seenLogs.current.has(l.id) && (!me || !myUnits.includes(l.unit)));
     logs.forEach(l=>seenLogs.current.add(l.id)); // incluye los propios para no auto-alertar
     if(fresh.length){
       setAlerts(prev=>{
@@ -951,12 +960,13 @@ function App(){
       setEditing(null); return;
     }
     const ts=Date.now();
-    const stamp=user.unit||ROLE_SHORT[user.role]||'ADMIN';
+    // estampa con la unidad dueña del aeródromo (un usuario multi-unidad edita varias)
+    const stamp=(user.role==='unit'?target.owner:user.unit)||ROLE_SHORT[user.role]||'ADMIN';
     const newAirports=airports.map(a=>a.icao===icao
       ? {...a,...next,updatedAt:ts,updatedBy:user.name+' · '+stamp,changed:[]}
       : a);
     const summary=diff.map(d=>fieldLabel(d.field)+': '+d.to).join(' · ');
-    const logEntry={id:ts,type:'upd',icao,unit:user.unit||stamp,user:user.name,ts,diff,summary,zulu:nowZ()};
+    const logEntry={id:ts,type:'upd',icao,unit:stamp,user:user.name,ts,diff,summary,zulu:nowZ()};
     const newLogs=[logEntry,...logs].slice(0,200);
     seenLogs.current.add(ts);          // nuestro propio cambio no debe auto-alertarnos
     setAirports(newAirports);
@@ -994,12 +1004,12 @@ function App(){
     const appu=(target.appu||[]).filter(x=>apps.includes(x));
     const epuse=reconcileEpUse(eps,stars,target.epuse);
     const ts=Date.now();
-    const stamp=user.unit||ROLE_SHORT[user.role]||'ADMIN';
+    const stamp=(user.role==='unit'?target.owner:user.unit)||ROLE_SHORT[user.role]||'ADMIN';
     const newAirports=airports.map(a=>a.icao===icao
       ? {...a,rwys,apps,eps,stars,rwyu,appu,epuse,updatedAt:ts,updatedBy:user.name+' · '+stamp,changed:[]}
       : a);
     const summary='Catálogo · '+diff.map(d=>fieldLabel(d.field)).join(', ')+' actualizado';
-    const logEntry={id:ts,type:'cat',icao,unit:user.unit||stamp,user:user.name,ts,diff,summary,zulu:nowZ()};
+    const logEntry={id:ts,type:'cat',icao,unit:stamp,user:user.name,ts,diff,summary,zulu:nowZ()};
     const newLogs=[logEntry,...logs].slice(0,200);
     seenLogs.current.add(ts);          // nuestro propio cambio no debe auto-alertarnos
     setAirports(newAirports);
@@ -1066,9 +1076,11 @@ function App(){
     if(rec.active===false) return {error:'Usuario inactivo. Contacta al administrador.'};
     const hash=await hashPassword(password, rec.salt||'');
     if(hash!==rec.passHash) return {error:'Contraseña incorrecta'};
-    const unitObj=UNITS.find(x=>x.code===rec.unit);
+    const units=userUnits(rec);                 // una o varias unidades gestionadas
+    const primary=units[0]||'';
+    const unitObj=UNITS.find(x=>x.code===primary);
     const profile={
-      username, name:rec.name, role:rec.role, unit:rec.unit||'',
+      username, name:rec.name, role:rec.role, unit:primary, units,
       region:unitObj?unitObj.region:'', mustChangePassword:!!rec.mustChangePassword
     };
     setUser(profile);
@@ -1104,11 +1116,14 @@ function App(){
     if(!USERNAME_RE.test(data.username)) return {error:'Usuario inválido (3-32 · letras, números, _ o -)'};
     if(usersMapRef.current[data.username]) return {error:'Ya existe ese usuario'};
     if(!data.password||data.password.length<6) return {error:'La contraseña debe tener 6+ caracteres'};
-    if(roleNeedsUnit(data.role) && !data.unit) return {error:'Selecciona la unidad asignada'};
+    // unidad → una o varias; general → una sola (se recorta al primer elemento)
+    let units = roleNeedsUnit(data.role) ? (data.units||[]).filter(Boolean) : [];
+    if(data.role==='general') units=units.slice(0,1);
+    if(roleNeedsUnit(data.role) && !units.length) return {error:'Selecciona al menos una unidad asignada'};
     const salt=randSalt(); const passHash=await hashPassword(data.password,salt);
     await writeUserDb(data.username,{
       username:data.username, name:data.name||data.username, role:data.role,
-      unit: roleNeedsUnit(data.role) ? data.unit : '',   // unidad y general se asignan a una unidad
+      unit: units[0]||'', units,           // unit = primaria (compat); units = todas
       salt, passHash, mustChangePassword:true, active:true,
       createdAt:Date.now(), createdBy:userRef.current.name
     });
@@ -1125,12 +1140,15 @@ function App(){
       extra={salt,passHash:await hashPassword(patch.password,salt),mustChangePassword:true};
     }
     const role=patch.role||cur.role;
-    const unit = roleNeedsUnit(role) ? (patch.unit!==undefined?patch.unit:cur.unit) : '';
-    if(roleNeedsUnit(role) && !unit) return {error:'Selecciona la unidad asignada'};
+    let units = roleNeedsUnit(role)
+      ? (patch.units!==undefined ? (patch.units||[]).filter(Boolean) : userUnits(cur))
+      : [];
+    if(role==='general') units=units.slice(0,1);
+    if(roleNeedsUnit(role) && !units.length) return {error:'Selecciona al menos una unidad asignada'};
     await writeUserDb(username,{
       ...cur,
       name:patch.name!==undefined?patch.name:cur.name,
-      role, unit,
+      role, unit:units[0]||'', units,
       active:patch.active!==undefined?patch.active:(cur.active!==false),
       ...extra
     });
@@ -1330,7 +1348,8 @@ function TopBar({user,clock,view,setView,unread,onLogout}){
       h('div',{className:'av'},user.name.replace(/[^A-Za-z]/g,'').slice(0,2).toUpperCase()),
       h('div',{className:'meta'},
         h('b',null,user.name),
-        h('br'),h('span',null, user.unit ? (ROLE_SHORT[user.role]+' · '+user.unit) : ROLE_LABEL[user.role])))
+        h('br'),h('span',null, (()=>{const us=userUnits(user);const lbl=us.length>1?us[0]+' +'+(us.length-1):us[0];
+          return lbl?(ROLE_SHORT[user.role]+' · '+lbl):ROLE_LABEL[user.role];})())))
   );
 }
 
@@ -1385,7 +1404,7 @@ function AddPicker({available,onAdd,onClose}){
 }
 
 function AirportCard({a,user,onEdit,metars,onRemove}){
-  const owns=a.owner===user.unit;
+  const owns=userUnits(user).includes(a.owner);
   const canEdit=canEditAirport(user,a);
   const m=metars[a.icao];
   const chg=a.changed||[];
@@ -1513,22 +1532,23 @@ function LogView({logs,user}){
                   fieldLabel(d.field)+' ',
                   h('span',{className:'chg'},d.from+' → '+d.to),
                   i<l.diff.length-1?'  ·  ':''))),
-              h('div',{className:'who2'}, l.user+' · '+l.unit+(l.unit===user.unit?' (esta unidad)':''))))))
+              h('div',{className:'who2'}, l.user+' · '+l.unit+(userUnits(user).includes(l.unit)?' (esta unidad)':''))))))
   );
 }
 
 /* ---------------- Briefing ---------------- */
 function Briefing({airports,logs,user,metars}){
   const [signed,setSigned]=useState({out:false,in:false});
-  // con unidad asignada (unidad/general) → su jurisdicción; admin/sector → toda la red
-  const mine=user.unit ? airports.filter(a=>a.owner===user.unit) : airports;
+  // con unidad(es) asignada(s) (unidad/general) → su jurisdicción; admin/sector → toda la red
+  const myUnits=userUnits(user);
+  const mine=myUnits.length ? airports.filter(a=>myUnits.includes(a.owner)) : airports;
   const ifr=airports.filter(a=>{const m=metars[a.icao];return m&&(m.cat==='IFR'||m.cat==='LIFR');});
   const recent=logs.slice(0,6);
   return h('div',{className:'brief'},
     h('div',{className:'panel',style:{padding:'16px 18px',display:'flex',alignItems:'center',gap:14,flexWrap:'wrap'}},
       h('div',null,
         h('div',{className:'eyebrow'},'Briefing de cambio de turno'),
-        h('div',{style:{fontFamily:'var(--mono)',fontSize:20,fontWeight:800,color:'var(--ink)',marginTop:6}}, user.unit||'RED NACIONAL'),
+        h('div',{style:{fontFamily:'var(--mono)',fontSize:20,fontWeight:800,color:'var(--ink)',marginTop:6}}, myUnits.join(' · ')||'RED NACIONAL'),
         h('div',{style:{fontFamily:'var(--mono)',fontSize:11,color:'var(--ink-dim)',marginTop:4}},'Generado '+nowZ()+' · turno saliente → entrante')),
       h('span',{className:'pill ok',style:{marginLeft:'auto'}},'LISTO PARA TRASPASO')),
 
@@ -1603,7 +1623,7 @@ function Footer({user,clock,changedNow,syncMode}){
       h('span',{className:'live',style:synced?null:{background:'var(--amber)',boxShadow:'0 0 8px var(--amber)'}}),
       h('b',{style:synced?null:{color:'var(--amber)'}},'RED OPERACIONAL'),
       synced?' · sincronizada':' · modo local (sin sync)'),
-    h('div',{className:'fi'},'UNIDAD: ',h('b',null,'\u00A0'+(user.unit||ROLE_SHORT[user.role]))),
+    h('div',{className:'fi'},'UNIDAD: ',h('b',null,'\u00A0'+(userUnits(user).join(' \u00B7 ')||ROLE_SHORT[user.role]))),
     h('div',{className:'fi'}, changedNow>0?h('span',{style:{color:'var(--amber)'}},'⚠ '+changedNow+' cambio(s) activo(s)'):'Sin alertas activas'),
     h('div',{className:'right'},
       h('div',{className:'fi'},'Sync '+clock.hms+' Z'))
@@ -1626,7 +1646,7 @@ function CatalogAdmin({airports,user,onSave,onCreate,onDelete}){
   const [adding,setAdding]=useState(false);
   const editable=airports.filter(a=>canEditAirport(user,a));
   const isAdmin=canManageAirports(user);
-  const scope = user.role==='admin' ? 'TODA LA RED' : (user.unit||'MI UNIDAD');
+  const scope = user.role==='admin' ? 'TODA LA RED' : (userUnits(user).join(' · ')||'MI UNIDAD');
   return h('div',null,
     h('div',{className:'phead',style:{borderTop:'none'}},
       h('h3',null,'Catálogo de pistas, STAR y aproximaciones'),
@@ -1695,7 +1715,7 @@ function CatalogCard({a,user,onSave,onDelete}){
   const [eps,setEps]=useState(a.eps||[]);
   const [stars,setStars]=useState(a.stars||[]);
   const [err,setErr]=useState(''); const [busy,setBusy]=useState(false);
-  const owns=a.owner===user.unit;
+  const owns=userUnits(user).includes(a.owner);
   const dirty = JSON.stringify([rwys,apps,eps,stars])!==JSON.stringify([a.rwys||[],a.apps||[],a.eps||[],a.stars||[]]);
 
   const save=async()=>{
@@ -1806,7 +1826,7 @@ function UsersAdmin({users,currentUser,onNew,onEdit,onDelete}){
                   h('div',{className:'nm'}, u.name),
                   h('div',{className:'city'}, ROLE_LABEL[u.role]||u.role)),
                 h('div',{className:'owntag'},
-                  h('b',null, roleNeedsUnit(u.role)?(u.unit||'—'):'—'),
+                  h('b',null, roleNeedsUnit(u.role)?(userUnits(u).join(' · ')||'—'):'—'),
                   u.active===false
                     ? h('span',{style:{color:'var(--red)'}},'INACTIVO')
                     : h('span',{style:{color:'var(--phos)'}},'ACTIVO'))),
@@ -1825,26 +1845,27 @@ function UserEditor({rec,currentUser,airports,onClose,onCreate,onSave}){
   const [username,setUsername]=useState(rec?rec.username:'');
   const [name,setName]=useState(rec?rec.name:'');
   const [role,setRole]=useState(rec?rec.role:'unit');
-  const [unit,setUnit]=useState(rec?(rec.unit||''):'');
+  const [units,setUnits]=useState(rec?userUnits(rec):[]);
   const [active,setActive]=useState(rec?rec.active!==false:true);
   const [password,setPassword]=useState('');
   const [err,setErr]=useState(''); const [busy,setBusy]=useState(false);
-  const needUnit=roleNeedsUnit(role);   // unidad y general se asignan a una unidad
+  const needUnit=roleNeedsUnit(role);   // unidad (varias) y general (una) se asignan a unidad(es)
+  const multi=role==='unit';            // el usuario de unidad puede gestionar varias
   // unidades disponibles = aeródromos del catálogo (dedup por propietario)
   const unitOpts=Array.from(new Map(
     (airports||[]).map(a=>[a.owner,{code:a.owner,label:a.icao+' · '+a.name}])).values());
-  // si el usuario ya tenía una unidad que ya no está en el catálogo, la conservamos como opción
-  if(unit && !unitOpts.some(o=>o.code===unit)) unitOpts.unshift({code:unit,label:unit+' · (fuera de catálogo)'});
+  // si el usuario ya tenía unidades que ya no están en el catálogo, las conservamos como opción
+  units.forEach(u=>{ if(u && !unitOpts.some(o=>o.code===u)) unitOpts.unshift({code:u,label:u+' · (fuera de catálogo)'}); });
   const roleHelp =
     role==='admin'  ? 'Acceso total: gestiona usuarios y edita cualquier unidad del país.' :
-    role==='unit'   ? 'Edita pistas/STAR/aprox SOLO de su unidad asignada.' :
+    role==='unit'   ? 'Edita pistas/STAR/aprox de TODAS sus unidades asignadas (una o varias).' :
     role==='sector' ? 'Solo visualización operativa (sin edición de datos).' :
                       'Solo accede al Briefing de turno de su unidad asignada.';
   const submit=async()=>{
     setBusy(true); setErr('');
     const r=isNew
-      ? await onCreate({username:username.trim(),name:name.trim(),role,unit,password})
-      : await onSave(rec.username,{name:name.trim(),role,unit,active,password:password||undefined});
+      ? await onCreate({username:username.trim(),name:name.trim(),role,units,password})
+      : await onSave(rec.username,{name:name.trim(),role,units,active,password:password||undefined});
     setBusy(false);
     if(r&&r.error) setErr(r.error);
   };
@@ -1869,14 +1890,24 @@ function UserEditor({rec,currentUser,airports,onClose,onCreate,onSave}){
           h('select',{value:role,onChange:e=>setRole(e.target.value)},
             ROLES.map(r=>h('option',{key:r,value:r},ROLE_LABEL[r])))),
         needUnit && h('div',{className:'field'},
-          h('label',null,'Unidad asignada ',h('span',{className:'hint'},'unidades del catálogo')),
+          h('label',null, multi?'Unidades asignadas ':'Unidad asignada ',
+            h('span',{className:'hint'}, multi?'una o varias del catálogo':'unidades del catálogo')),
           unitOpts.length===0
             ? h('div',{style:{fontFamily:'var(--mono)',fontSize:11,color:'var(--amber)',
                 border:'1px solid var(--amber-deep)',padding:'10px 12px',lineHeight:1.5}},
                 'No hay unidades en el catálogo. Crea primero un aeródromo en el módulo Catálogo.')
-            : h('select',{value:unit,onChange:e=>setUnit(e.target.value)},
-                h('option',{value:''},'— Selecciona unidad —'),
-                unitOpts.map(o=>h('option',{key:o.code,value:o.code},o.label)))),
+            : multi
+              ? h('div',{style:{display:'flex',flexDirection:'column',gap:6,maxHeight:200,overflowY:'auto',
+                  border:'1px solid var(--line)',padding:'8px 10px'}},
+                  unitOpts.map(o=>h('label',{key:o.code,style:{display:'flex',alignItems:'center',gap:8,cursor:'pointer',
+                    fontFamily:'var(--mono)',fontSize:12,color:'var(--ink)',userSelect:'none'}},
+                    h('input',{type:'checkbox',checked:units.includes(o.code),
+                      style:{width:14,height:14,accentColor:'var(--phos)',cursor:'pointer'},
+                      onChange:e=>setUnits(prev=> e.target.checked ? [...prev,o.code] : prev.filter(x=>x!==o.code))}),
+                    o.label)))
+              : h('select',{value:units[0]||'',onChange:e=>setUnits(e.target.value?[e.target.value]:[])},
+                  h('option',{value:''},'— Selecciona unidad —'),
+                  unitOpts.map(o=>h('option',{key:o.code,value:o.code},o.label)))),
         !isNew && h('div',{className:'field'},
           h('label',null,'Estado de la cuenta'),
           h('div',{className:'seg'},
