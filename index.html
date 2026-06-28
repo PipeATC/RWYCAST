@@ -746,7 +746,7 @@ function App(){
   const [view,setView]=useState('viewer');
   const [editing,setEditing]=useState(null);
   const [query,setQuery]=useState('');
-  const [filter,setFilter]=useState('all'); // all | mine
+  const [filter,setFilter]=useState('mine'); // all | mine — el visor inicia en "Mi jurisdicción"
   const [toasts,setToasts]=useState([]);
   const [clock,setClock]=useState(clockZ());
   const [unread,setUnread]=useState(0);
