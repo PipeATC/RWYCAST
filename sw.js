@@ -9,15 +9,40 @@
      siempre directo a la red para mantener el tiempo real.
    Sube la versión de CACHE al cambiar assets para forzar refresco.
    ============================================================ */
-const CACHE = 'rwycast-v1';
+const CACHE = 'rwycast-v5';
+const JS_MODULES = [
+  './js/core/react-setup.js',
+  './js/config/keys.js',
+  './js/data/seed.js',
+  './js/data/icons.js',
+  './js/services/firebase.js',
+  './js/services/state.js',
+  './js/services/metars.js',
+  './js/services/briefing.js',
+  './js/services/users.js',
+  './js/auth/rbac.js',
+  './js/auth/password.js',
+  './js/utils/time.js',
+  './js/utils/catalog.js',
+  './js/components/app.js',
+  './js/components/login.js',
+  './js/components/layout.js',
+  './js/components/viewer.js',
+  './js/components/log.js',
+  './js/components/briefing-view.js',
+  './js/components/catalog-view.js',
+  './js/components/users-view.js',
+  './js/main.js',
+];
 const CORE = [
   './',
   './index.html',
+  './styles.css',
   './manifest.webmanifest',
   './icon-512.png',
+  ...JS_MODULES,
   'https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js',
   'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js',
   'https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js'
 ];
@@ -49,11 +74,31 @@ self.addEventListener('fetch', e => {
   // Tráfico dinámico en tiempo real: no tocar.
   if (/firebaseio\.com|firebasedatabase\.app|google-analytics|googletagmanager/.test(url.host)) return;
 
+  // JS/CSS locales: red primero (evita servir módulos rotos del cache en desarrollo)
+  if (url.origin === location.origin && /\.(js|css)$/.test(url.pathname)) {
+    e.respondWith(
+      fetch(req).then(r => {
+        if (r && r.ok) {
+          const copy = r.clone();
+          caches.open(CACHE).then(c => c.put(req, copy));
+        }
+        return r;
+      }).catch(() => caches.match(req))
+    );
+    return;
+  }
+
   // Navegación: red primero, respaldo al shell cacheado.
   if (req.mode === 'navigate') {
     e.respondWith(
       fetch(req)
-        .then(r => { caches.open(CACHE).then(c => c.put('./index.html', r.clone())); return r; })
+        .then(r => {
+          if (r && r.ok) {
+            const copy = r.clone();
+            caches.open(CACHE).then(c => c.put('./index.html', copy));
+          }
+          return r;
+        })
         .catch(() => caches.match('./index.html'))
     );
     return;
