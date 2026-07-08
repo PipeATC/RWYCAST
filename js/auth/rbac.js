@@ -16,17 +16,27 @@ const RAIL_META={
   users:['Gestión de usuarios',Ic.users],
 };
 
-// Roles que se asignan a una unidad aeroportuaria específica.
-// unit → una o varias; sector y general → una (pertenecen a un usuario de unidad).
-function roleNeedsUnit(role){ return role==='unit'||role==='sector'||role==='general'; }
-// Roles que pertenecen a una única unidad (no pueden gestionar varias)
-function roleSingleUnit(role){ return role==='sector'||role==='general'; }
-// Unidades aeroportuarias que gestiona el usuario. El usuario de unidad puede tener
-// varias (units[]); general una. Acepta tanto un perfil de sesión como un registro DB.
+// Roles que gestionan directamente unidades aeroportuarias del catálogo (solo unit).
+function roleNeedsUnit(role){ return role==='unit'; }
+// Roles que pertenecen a un usuario de unidad (sector y general): heredan sus unidades.
+function roleNeedsParent(role){ return role==='sector'||role==='general'; }
+// Unidades aeroportuarias asociadas al registro. El usuario de unidad las gestiona
+// directamente (units[]); sector/general guardan una copia heredada de su usuario de
+// unidad padre. Acepta tanto un perfil de sesión como un registro DB.
 function userUnits(u){
   if(!u) return [];
   if(Array.isArray(u.units) && u.units.length) return u.units;
   return u.unit ? [u.unit] : [];
+}
+// Unidades efectivas: propias (unit/admin) o, si pertenece a un usuario de unidad
+// (sector/general), las de su usuario de unidad padre resuelto desde la base.
+function effectiveUnits(rec, usersMap){
+  if(!rec) return [];
+  if(roleNeedsParent(rec.role)){
+    const p = rec.parent && (usersMap||{})[rec.parent];
+    return p ? userUnits(p) : userUnits(rec);
+  }
+  return userUnits(rec);
 }
 
 // Pestañas permitidas por rol (control de rutas / navegación)

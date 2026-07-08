@@ -292,7 +292,8 @@ function App(){
     if(rec.active===false) return {error:'Usuario inactivo. Contacta al administrador.'};
     const hash=await hashPassword(password, rec.salt||'');
     if(hash!==rec.passHash) return {error:'Contraseña incorrecta'};
-    const units=userUnits(rec);                 // una o varias unidades gestionadas
+    // unit/admin usan sus propias unidades; sector/general heredan las de su usuario de unidad
+    const units=effectiveUnits(rec, usersMapRef.current);
     const primary=units[0]||'';
     const unitObj=UNITS.find(x=>x.code===primary);
     const profile={
@@ -332,14 +333,23 @@ function App(){
     if(!USERNAME_RE.test(data.username)) return {error:'Usuario inválido (3-32 · letras, números, _ o -)'};
     if(usersMapRef.current[data.username]) return {error:'Ya existe ese usuario'};
     if(!data.password||data.password.length<6) return {error:'La contraseña debe tener 6+ caracteres'};
-    // unidad → una o varias; sector y general → una sola (se recorta al primer elemento)
-    let units = roleNeedsUnit(data.role) ? (data.units||[]).filter(Boolean) : [];
-    if(roleSingleUnit(data.role)) units=units.slice(0,1);
-    if(roleNeedsUnit(data.role) && !units.length) return {error:'Selecciona la unidad a la que pertenece'};
+    // unit → una o varias unidades del catálogo; sector/general → pertenecen a un
+    // usuario de unidad (parent) y heredan sus unidades.
+    let units=[], parent='';
+    if(roleNeedsUnit(data.role)){
+      units=(data.units||[]).filter(Boolean);
+      if(!units.length) return {error:'Selecciona al menos una unidad asignada'};
+    } else if(roleNeedsParent(data.role)){
+      parent=(data.parent||'').trim();
+      const p=usersMapRef.current[parent];
+      if(!p || p.role!=='unit') return {error:'Selecciona el usuario de unidad al que pertenece'};
+      units=userUnits(p);
+    }
     const salt=randSalt(); const passHash=await hashPassword(data.password,salt);
     await writeUserDb(data.username,{
       username:data.username, name:data.name||data.username, role:data.role,
-      unit: units[0]||'', units,           // unit = primaria (compat); units = todas
+      parent,                              // usuario de unidad al que pertenece (sector/general)
+      unit: units[0]||'', units,           // unit = primaria (compat); units = heredadas/propias
       salt, passHash, mustChangePassword:true, active:true,
       createdAt:Date.now(), createdBy:userRef.current.name
     });
@@ -356,15 +366,20 @@ function App(){
       extra={salt,passHash:await hashPassword(patch.password,salt),mustChangePassword:true};
     }
     const role=patch.role||cur.role;
-    let units = roleNeedsUnit(role)
-      ? (patch.units!==undefined ? (patch.units||[]).filter(Boolean) : userUnits(cur))
-      : [];
-    if(roleSingleUnit(role)) units=units.slice(0,1);
-    if(roleNeedsUnit(role) && !units.length) return {error:'Selecciona la unidad a la que pertenece'};
+    let units=[], parent='';
+    if(roleNeedsUnit(role)){
+      units = patch.units!==undefined ? (patch.units||[]).filter(Boolean) : userUnits(cur);
+      if(!units.length) return {error:'Selecciona al menos una unidad asignada'};
+    } else if(roleNeedsParent(role)){
+      parent = patch.parent!==undefined ? (patch.parent||'').trim() : (cur.parent||'');
+      const p=usersMapRef.current[parent];
+      if(!p || p.role!=='unit') return {error:'Selecciona el usuario de unidad al que pertenece'};
+      units=userUnits(p);
+    }
     await writeUserDb(username,{
       ...cur,
       name:patch.name!==undefined?patch.name:cur.name,
-      role, unit:units[0]||'', units,
+      role, parent, unit:units[0]||'', units,
       active:patch.active!==undefined?patch.active:(cur.active!==false),
       ...extra
     });
@@ -411,7 +426,7 @@ function App(){
     h(MobileTabs,{view,setView,changedNow,user}),
     editing && h(Editor,{ap:editing,user,onClose:()=>setEditing(null),onSave:commitChange}),
     editingUser && h(UserEditor,{
-      rec:editingUser.__new?null:editingUser, currentUser:user, airports,
+      rec:editingUser.__new?null:editingUser, currentUser:user, airports, users,
       onClose:()=>setEditingUser(null),
       onCreate:async d=>{const r=await createUser(d); if(r&&r.ok)setEditingUser(null); return r;},
       onSave:async (un,p)=>{const r=await saveUser(un,p); if(r&&r.ok)setEditingUser(null); return r;},
