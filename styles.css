@@ -79,7 +79,7 @@
   .clock .z{font-family:var(--mono);font-size:18px;font-weight:700;color:#fff;letter-spacing:.06em;line-height:1.15}
   .clock .lbl{font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:var(--ink-faint);text-align:center;margin-bottom:2px}
   .who{display:flex;align-items:center;gap:10px;padding:0 16px;border-left:1px solid var(--line);cursor:pointer}
-  .who .av{width:30px;height:30px;border:1px solid var(--phos);display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:12px;color:var(--phos)}
+  .who .av{min-width:30px;height:30px;padding:0 6px;border:1px solid var(--phos);display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:12px;letter-spacing:.02em;color:var(--phos)}
   .who .meta{font-family:var(--mono);font-size:10px;line-height:1.5}
   .who .meta b{color:var(--ink);font-size:11px}
   .who .meta span{color:var(--ink-faint)}
