@@ -48,30 +48,45 @@ function AddPicker({available,onAdd,onClose}){
   );
 }
 
-// abre la carta PDF (aproximación / pista / STAR) en una ventana emergente
-function openChart(url){
-  if(!url) return;
-  window.open(url,'rwycast_chart','width=920,height=1040,scrollbars=yes,resizable=yes');
+// construye el src del PDF ocultando la barra de utilidades del visor de Chrome
+function pdfSrc(url){
+  return url + (url.includes('#')?'&':'#') + 'toolbar=0&navpanes=0&scrollbar=0';
+}
+// visor de carta PDF embebido en la propia app (overlay), sin las barras del navegador
+function ChartModal({url,name,onClose}){
+  useEffect(()=>{
+    const onKey=e=>{ if(e.key==='Escape') onClose(); };
+    window.addEventListener('keydown',onKey);
+    return ()=>window.removeEventListener('keydown',onKey);
+  },[]);
+  return h('div',{className:'scrim center chartscrim',onClick:e=>{if(e.target===e.currentTarget)onClose();}},
+    h('div',{className:'chartbox'},
+      h('div',{className:'charthead'},
+        h('div',{className:'charttitle'}, 'CARTA · ', h('b',null,name||'PDF')),
+        h('a',{className:'chartopen',href:url,target:'_blank',rel:'noopener noreferrer',
+          title:'Abrir en una pestaña nueva'},'Abrir ↗'),
+        h('button',{className:'x',onClick:onClose,title:'Cerrar (Esc)'},'✕')),
+      h('iframe',{className:'chartframe',src:pdfSrc(url),title:'Carta '+(name||'PDF')})));
 }
 // nombre de pista/aprox/STAR: si tiene carta PDF en el catálogo, se muestra como
-// enlace que abre el documento en una ventana emergente
-function chartName(name,charts,key){
+// enlace que abre el documento en el visor embebido de la app
+function chartName(name,charts,key,onOpen){
   const url=chartUrl(charts,name);
   return url
-    ? h('a',{key,className:'chartlink',href:url,target:'_blank',rel:'noopener noreferrer',
+    ? h('a',{key,className:'chartlink',href:url,
         title:'Ver carta PDF de '+name,
-        onClick:e=>{e.preventDefault(); openChart(url);}},
-        name, h('span',{className:'chartic',title:'Abrir carta PDF'},' ↗'))
+        onClick:e=>{e.preventDefault(); onOpen(url,name);}},
+        name, h('span',{className:'chartic',title:'Ver carta PDF'},' ↗'))
     : h('span',{key},name);
 }
 // lista de nombres separados por " / ", cada uno enlazable a su carta PDF
-function chartList(names,charts){
+function chartList(names,charts,onOpen){
   const arr=names||[];
   if(!arr.length) return '—';
   const out=[];
   arr.forEach((n,i)=>{
     if(i) out.push(h('span',{key:'sep'+i,className:'chsep'},' / '));
-    out.push(chartName(n,charts,'n'+i));
+    out.push(chartName(n,charts,'n'+i,onOpen));
   });
   return out;
 }
@@ -81,9 +96,11 @@ function AirportCard({a,user,onEdit,metars,onRemove}){
   const canEdit=canEditAirport(user,a);
   const m=metars[a.icao];
   const chg=a.changed||[];
+  const [chart,setChart]=useState(null);   // {url,name} de la carta abierta en el visor
+  const openChart=(url,name)=>setChart({url,name});
   const fldNode=(key,label,arr)=>h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
     h('div',{className:'k'},label),
-    h('div',{className:'val'+((arr&&arr.length)?'':' empty')}, (arr&&arr.length)?chartList(arr,a.charts):'—'));
+    h('div',{className:'val'+((arr&&arr.length)?'':' empty')}, (arr&&arr.length)?chartList(arr,a.charts,openChart):'—'));
   return h('div',{className:'apcard'+(chg.length?' changed':'')},
     h('div',{className:'crest'},
       h('div',null,
@@ -106,7 +123,7 @@ function AirportCard({a,user,onEdit,metars,onRemove}){
             h('div',{className:'val'+(ep?'':' empty')}, ep||'—')),
           h('div',{className:'epf'},
             h('div',{className:'k'},'STAR en uso'),
-            h('div',{className:'val'+(inUse?'':' empty')}, inUse?chartName(inUse,a.charts,'star'):'—')));
+            h('div',{className:'val'+(inUse?'':' empty')}, inUse?chartName(inUse,a.charts,'star',openChart):'—')));
       })),
     m && h('div',{className:'metarline'},
       m.cat && h('span',{className:'fr '+m.cat},m.cat),
@@ -119,7 +136,8 @@ function AirportCard({a,user,onEdit,metars,onRemove}){
         onClick:()=>onRemove(a.icao)},'Quitar'),
       h('span',{className:'editlink'+(canEdit?'':' locked'),
         title:canEdit?'':'Tu rol no permite editar este aeródromo',
-        onClick:()=>canEdit&&onEdit(a)}, canEdit?'Editar':'Solo lectura'))
+        onClick:()=>canEdit&&onEdit(a)}, canEdit?'Editar':'Solo lectura')),
+    chart && h(ChartModal,{url:chart.url,name:chart.name,onClose:()=>setChart(null)})
   );
 }
 
