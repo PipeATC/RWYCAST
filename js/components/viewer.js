@@ -52,24 +52,13 @@ function AddPicker({available,onAdd,onClose}){
 function pdfSrc(url){
   return url + (url.includes('#')?'&':'#') + 'toolbar=0&navpanes=0&scrollbar=0';
 }
-// visor de carta PDF embebido en la propia app (overlay), sin las barras del navegador
-function ChartModal({url,name,onClose}){
-  useEffect(()=>{
-    const onKey=e=>{ if(e.key==='Escape') onClose(); };
-    window.addEventListener('keydown',onKey);
-    return ()=>window.removeEventListener('keydown',onKey);
-  },[]);
-  return h('div',{className:'scrim center chartscrim',onClick:e=>{if(e.target===e.currentTarget)onClose();}},
-    h('div',{className:'chartbox'},
-      h('div',{className:'charthead'},
-        h('div',{className:'charttitle'}, 'CARTA · ', h('b',null,name||'PDF')),
-        h('a',{className:'chartopen',href:url,target:'_blank',rel:'noopener noreferrer',
-          title:'Abrir en una pestaña nueva'},'Abrir ↗'),
-        h('button',{className:'x',onClick:onClose,title:'Cerrar (Esc)'},'✕')),
-      h('iframe',{className:'chartframe',src:pdfSrc(url),title:'Carta '+(name||'PDF')})));
+// abre la carta PDF en una ventana emergente de Chrome, sin la barra de herramientas PDF
+function openChart(url){
+  if(!url) return;
+  window.open(pdfSrc(url),'rwycast_chart','width=920,height=1040,scrollbars=yes,resizable=yes');
 }
 // nombre de pista/aprox/STAR: si tiene carta PDF en el catálogo, se muestra como
-// enlace que abre el documento en el visor embebido de la app
+// enlace que abre el documento en una ventana emergente
 function chartName(name,charts,key,onOpen){
   const url=chartUrl(charts,name);
   return url
@@ -96,8 +85,6 @@ function AirportCard({a,user,onEdit,metars,onRemove}){
   const canEdit=canEditAirport(user,a);
   const m=metars[a.icao];
   const chg=a.changed||[];
-  const [chart,setChart]=useState(null);   // {url,name} de la carta abierta en el visor
-  const openChart=(url,name)=>setChart({url,name});
   const fldNode=(key,label,arr)=>h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
     h('div',{className:'k'},label),
     h('div',{className:'val'+((arr&&arr.length)?'':' empty')}, (arr&&arr.length)?chartList(arr,a.charts,openChart):'—'));
@@ -136,8 +123,7 @@ function AirportCard({a,user,onEdit,metars,onRemove}){
         onClick:()=>onRemove(a.icao)},'Quitar'),
       h('span',{className:'editlink'+(canEdit?'':' locked'),
         title:canEdit?'':'Tu rol no permite editar este aeródromo',
-        onClick:()=>canEdit&&onEdit(a)}, canEdit?'Editar':'Solo lectura')),
-    chart && h(ChartModal,{url:chart.url,name:chart.name,onClose:()=>setChart(null)})
+        onClick:()=>canEdit&&onEdit(a)}, canEdit?'Editar':'Solo lectura'))
   );
 }
 
