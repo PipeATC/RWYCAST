@@ -52,10 +52,14 @@ function AddPicker({available,onAdd,onClose}){
 function pdfSrc(url){
   return url + (url.includes('#')?'&':'#') + 'toolbar=0&navpanes=0&scrollbar=0';
 }
-// abre la carta PDF en una ventana emergente de Chrome, sin la barra de herramientas PDF
+// abre la carta PDF en una ventana emergente de Chrome, sin barra de herramientas PDF
+// ni barra de direcciones/menús (popup minimal). El navegador puede forzar mostrar el
+// origen por seguridad; con estos flags se obtiene la ventana más limpia posible.
 function openChart(url){
   if(!url) return;
-  window.open(pdfSrc(url),'rwycast_chart','width=920,height=1040,scrollbars=yes,resizable=yes');
+  const feats='popup=yes,location=no,menubar=no,toolbar=no,status=no,titlebar=no,'
+    +'scrollbars=yes,resizable=yes,width=920,height=1040';
+  window.open(pdfSrc(url),'rwycast_chart',feats);
 }
 // nombre de pista/aprox/STAR: si tiene carta PDF en el catálogo, se muestra como
 // enlace que abre el documento en una ventana emergente
