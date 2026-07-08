@@ -161,6 +161,13 @@
   .epf .k{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--ink-faint);text-transform:uppercase}
   .epf .val{font-family:var(--mono);font-size:15px;font-weight:800;color:var(--ink);margin-top:5px;line-height:1;letter-spacing:.02em}
   .epf .val.empty{color:var(--ink-faint);font-weight:500;font-size:13px}
+  /* nombre con carta PDF: enlace que abre el documento en ventana emergente */
+  .chartlink{color:var(--phos);text-decoration:none;cursor:pointer;border-bottom:1px dotted var(--phos);
+    transition:.13s;white-space:nowrap}
+  .chartlink:hover{color:var(--void);background:var(--phos);border-bottom-color:transparent;
+    box-shadow:0 0 10px rgba(63,240,168,.4)}
+  .chartlink .chartic{font-size:.7em;font-weight:700;vertical-align:super;letter-spacing:0}
+  .chsep{color:var(--ink-faint)}
 
   /* blink signalling */
   @keyframes flashfield{
@@ -305,6 +312,16 @@
   .catitem input{flex:1;min-width:0;background:var(--void);border:1px solid var(--line);color:var(--phos);
     font-family:var(--mono);font-size:13px;font-weight:700;padding:8px 10px;outline:none;letter-spacing:.04em}
   .catitem input:focus{border-color:var(--phos);box-shadow:0 0 0 1px var(--phos)}
+  /* ítem en dos filas: nombre + enlace a carta PDF */
+  .catitem.col{flex-direction:column;align-items:stretch;gap:5px;
+    border:1px solid var(--line-soft);background:rgba(0,0,0,.15);padding:8px 8px 9px;margin-bottom:9px}
+  .catitem.col .catitemrow{display:flex;align-items:center;gap:7px}
+  .catitem input.charturl{flex:1 1 auto;width:100%;font-size:11px;font-weight:500;letter-spacing:0;
+    color:var(--ink-dim);text-transform:none;padding:6px 9px;border-style:dashed}
+  .catitem input.charturl:focus{color:var(--ink);border-style:solid;border-color:var(--phos);box-shadow:0 0 0 1px var(--phos)}
+  .staritem input.charturl{width:100%;margin-top:8px;background:var(--void);border:1px dashed var(--line);
+    color:var(--ink-dim);font-family:var(--mono);font-size:11px;padding:6px 9px;outline:none;box-sizing:border-box}
+  .staritem input.charturl:focus{color:var(--ink);border-style:solid;border-color:var(--phos);box-shadow:0 0 0 1px var(--phos)}
   .catrm{flex:0 0 auto;width:30px;height:34px;background:var(--void);border:1px solid var(--line);
     color:var(--ink-faint);cursor:pointer;font-size:12px;transition:.13s}
   .catrm:hover{color:var(--red);border-color:var(--red)}

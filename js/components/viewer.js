@@ -48,14 +48,42 @@ function AddPicker({available,onAdd,onClose}){
   );
 }
 
+// abre la carta PDF (aproximación / pista / STAR) en una ventana emergente
+function openChart(url){
+  if(!url) return;
+  window.open(url,'rwycast_chart','width=920,height=1040,scrollbars=yes,resizable=yes');
+}
+// nombre de pista/aprox/STAR: si tiene carta PDF en el catálogo, se muestra como
+// enlace que abre el documento en una ventana emergente
+function chartName(name,charts,key){
+  const url=chartUrl(charts,name);
+  return url
+    ? h('a',{key,className:'chartlink',href:url,target:'_blank',rel:'noopener noreferrer',
+        title:'Ver carta PDF de '+name,
+        onClick:e=>{e.preventDefault(); openChart(url);}},
+        name, h('span',{className:'chartic',title:'Abrir carta PDF'},' ↗'))
+    : h('span',{key},name);
+}
+// lista de nombres separados por " / ", cada uno enlazable a su carta PDF
+function chartList(names,charts){
+  const arr=names||[];
+  if(!arr.length) return '—';
+  const out=[];
+  arr.forEach((n,i)=>{
+    if(i) out.push(h('span',{key:'sep'+i,className:'chsep'},' / '));
+    out.push(chartName(n,charts,'n'+i));
+  });
+  return out;
+}
+
 function AirportCard({a,user,onEdit,metars,onRemove}){
   const owns=userUnits(user).includes(a.owner);
   const canEdit=canEditAirport(user,a);
   const m=metars[a.icao];
   const chg=a.changed||[];
-  const fld=(key,label,val)=>h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
+  const fldNode=(key,label,arr)=>h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
     h('div',{className:'k'},label),
-    h('div',{className:'val'+(val?'':' empty')}, val||'—'));
+    h('div',{className:'val'+((arr&&arr.length)?'':' empty')}, (arr&&arr.length)?chartList(arr,a.charts):'—'));
   return h('div',{className:'apcard'+(chg.length?' changed':'')},
     h('div',{className:'crest'},
       h('div',null,
@@ -67,8 +95,8 @@ function AirportCard({a,user,onEdit,metars,onRemove}){
         owns?h('span',{style:{color:'var(--phos)'}},'MI UNIDAD')
             :(user.role==='admin'?h('span',null,'ADMIN'):h('span',null,'')))),
     h('div',{className:'opfields two'},
-      fld('rwyu','Pista en uso', (a.rwyu||[]).join(' / ')),
-      fld('appu','Aproximación', (a.appu||[]).join(' / '))),
+      fldNode('rwyu','Pista en uso', a.rwyu),
+      fldNode('appu','Aproximación', a.appu)),
     (a.eps&&a.eps.length>0) && h('div',{className:'eplist'},
       a.eps.map((ep,i)=>{
         const inUse=(a.epuse||{})[ep]||'';
@@ -78,7 +106,7 @@ function AirportCard({a,user,onEdit,metars,onRemove}){
             h('div',{className:'val'+(ep?'':' empty')}, ep||'—')),
           h('div',{className:'epf'},
             h('div',{className:'k'},'STAR en uso'),
-            h('div',{className:'val'+(inUse?'':' empty')}, inUse||'—')));
+            h('div',{className:'val'+(inUse?'':' empty')}, inUse?chartName(inUse,a.charts,'star'):'—')));
       })),
     m && h('div',{className:'metarline'},
       m.cat && h('span',{className:'fr '+m.cat},m.cat),

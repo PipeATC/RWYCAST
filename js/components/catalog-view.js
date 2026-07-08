@@ -50,17 +50,38 @@ function CatalogListRow({a,user,onEdit,onDelete}){
       onDelete && h('span',{className:'editlink rm',onClick:del},'Eliminar')));
 }
 
-/* editor de una lista (pistas / aprox): agrega, edita y elimina ítems */
-function ListEditor({label,items,onChange,placeholder,className}){
-  return h('div',{className:className||'catcol'},
-    h('div',{className:'catlbl'}, label,
-      h('span',{className:'catn'}, items.filter(x=>(x||'').trim()).length)),
-    items.map((v,i)=>h('div',{className:'catitem',key:i},
-      h('input',{value:v,placeholder,autoCapitalize:'characters',autoCorrect:'off',spellCheck:false,
-        onChange:e=>onChange(items.map((x,j)=>j===i?e.target.value.toUpperCase():x))}),
+/* editor de una lista simple de strings (puntos de entrada): sin hipervínculo */
+function EpsEditor({eps,onChange}){
+  return h('div',{className:'catcol bare'},
+    h('div',{className:'catlbl'}, 'Puntos de entrada',
+      h('span',{className:'catn'}, eps.filter(x=>(x||'').trim()).length)),
+    eps.map((v,i)=>h('div',{className:'catitem',key:i},
+      h('input',{value:v,placeholder:'Ej. DOSO',autoCapitalize:'characters',autoCorrect:'off',spellCheck:false,
+        onChange:e=>onChange(eps.map((x,j)=>j===i?e.target.value.toUpperCase():x))}),
       h('button',{className:'catrm',title:'Eliminar',
-        onClick:()=>onChange(items.filter((_,j)=>j!==i))},'✕'))),
-    h('button',{className:'catadd',onClick:()=>onChange([...items,''])},'+ Agregar'));
+        onClick:()=>onChange(eps.filter((_,j)=>j!==i))},'✕'))),
+    h('button',{className:'catadd',onClick:()=>onChange([...eps,''])},'+ Agregar'));
+}
+
+/* editor de una lista (pistas / aprox): agrega, edita y elimina ítems. Cada ítem es
+   {name, url}: el nombre y un hipervínculo opcional a la carta PDF (aproximación/pista)
+   publicada en la IP, que luego se abre en una ventana emergente desde el visor. */
+function ListEditor({label,items,onChange,placeholder,urlPlaceholder}){
+  const set=(i,patch)=>onChange(items.map((x,j)=>j===i?{...x,...patch}:x));
+  return h('div',{className:'catcol bare'},
+    h('div',{className:'catlbl'}, label,
+      h('span',{className:'catn'}, items.filter(x=>(x.name||'').trim()).length)),
+    items.map((it,i)=>h('div',{className:'catitem col',key:i},
+      h('div',{className:'catitemrow'},
+        h('input',{value:it.name||'',placeholder,autoCapitalize:'characters',autoCorrect:'off',spellCheck:false,
+          onChange:e=>set(i,{name:e.target.value.toUpperCase()})}),
+        h('button',{className:'catrm',title:'Eliminar',
+          onClick:()=>onChange(items.filter((_,j)=>j!==i))},'✕')),
+      h('input',{className:'charturl',type:'url',value:it.url||'',
+        placeholder:urlPlaceholder||'https://… enlace a carta PDF (opcional)',
+        autoCapitalize:'off',autoCorrect:'off',spellCheck:false,
+        onChange:e=>set(i,{url:e.target.value.trim()})}))),
+    h('button',{className:'catadd',onClick:()=>onChange([...items,{name:'',url:''}])},'+ Agregar'));
 }
 
 /* editor de STARs: cada STAR tiene un nombre y sirve a uno o más puntos de entrada
@@ -80,6 +101,10 @@ function StarsEditor({stars,eps,onChange,className}){
         h('input',{value:s.name||'',placeholder:'Nombre STAR (ej. DOSO1A)',autoCapitalize:'characters',autoCorrect:'off',spellCheck:false,
           onChange:e=>setStar(i,{name:e.target.value.toUpperCase()})}),
         h('button',{className:'catrm',title:'Eliminar',onClick:()=>onChange(stars.filter((_,j)=>j!==i))},'✕')),
+      h('input',{className:'charturl',type:'url',value:s.url||'',
+        placeholder:'https://… enlace a carta STAR PDF (opcional)',
+        autoCapitalize:'off',autoCorrect:'off',spellCheck:false,
+        onChange:e=>setStar(i,{url:e.target.value.trim()})}),
       h('div',{className:'starps'},
         h('span',{className:'starpslbl'},'Sirve a:'),
         validEps.length===0
@@ -87,7 +112,7 @@ function StarsEditor({stars,eps,onChange,className}){
           : validEps.map(ep=>h('button',{key:ep,type:'button',
               className:'epchip'+((s.eps||[]).includes(ep)?' on':''),
               onClick:()=>toggleEp(i,ep)},ep))))),
-    h('button',{className:'catadd',onClick:()=>onChange([...stars,{name:'',eps:[]}])},'+ Agregar STAR'));
+    h('button',{className:'catadd',onClick:()=>onChange([...stars,{name:'',eps:[],url:''}])},'+ Agregar STAR'));
 }
 
 /* ---------------- Edición completa de una unidad aeroportuaria (drawer) ----------------
@@ -95,16 +120,19 @@ function StarsEditor({stars,eps,onChange,className}){
    ciudad, pistas, aproximaciones, puntos de entrada y STAR. El OACI es la identidad y no
    se edita. admin → cualquier unidad; usuario de unidad → solo las suyas. */
 function CatalogUnitEditor({a,user,onClose,onSave,onDelete}){
+  // reconstruye los ítems con su carta PDF (mapa a.charts) para editarlos con su URL
+  const initItems=list=>(list||[]).map(x=>({name:x, url:chartUrl(a.charts,x)}));
+  const initStars=(a.stars||[]).map(s=>({...s, url:chartUrl(a.charts,s.name)}));
   const [name,setName]=useState(a.name||'');
   const [city,setCity]=useState(a.city||'');
-  const [rwys,setRwys]=useState(a.rwys||[]);
-  const [apps,setApps]=useState(a.apps||[]);
+  const [rwys,setRwys]=useState(initItems(a.rwys));
+  const [apps,setApps]=useState(initItems(a.apps));
   const [eps,setEps]=useState(a.eps||[]);
-  const [stars,setStars]=useState(a.stars||[]);
+  const [stars,setStars]=useState(initStars);
   const [err,setErr]=useState(''); const [busy,setBusy]=useState(false);
   const owns=userUnits(user).includes(a.owner);
   const dirty = JSON.stringify([name,city,rwys,apps,eps,stars])
-              !==JSON.stringify([a.name||'',a.city||'',a.rwys||[],a.apps||[],a.eps||[],a.stars||[]]);
+              !==JSON.stringify([a.name||'',a.city||'',initItems(a.rwys),initItems(a.apps),a.eps||[],initStars]);
   const save=async()=>{
     setBusy(true); setErr('');
     const r=await onSave(a.icao,{name,city,rwys,apps,eps,stars});
@@ -133,9 +161,9 @@ function CatalogUnitEditor({a,user,onClose,onSave,onDelete}){
         h('div',{className:'field'},
           h('label',null,'Nombre del aeródromo'),
           h('input',{value:name,placeholder:'A. Merino Benítez',style:{fontSize:14},onChange:e=>setName(e.target.value)})),
-        h(ListEditor,{label:'Pistas', items:rwys, onChange:setRwys, placeholder:'Ej. 17L', className:'catcol bare'}),
-        h(ListEditor,{label:'Aproximaciones', items:apps, onChange:setApps, placeholder:'Ej. ILS Z 17L', className:'catcol bare'}),
-        h(ListEditor,{label:'Puntos de entrada', items:eps, onChange:setEps, placeholder:'Ej. DOSO', className:'catcol bare'}),
+        h(ListEditor,{label:'Pistas', items:rwys, onChange:setRwys, placeholder:'Ej. 17L', urlPlaceholder:'https://… enlace a carta de pista PDF (opcional)'}),
+        h(ListEditor,{label:'Aproximaciones', items:apps, onChange:setApps, placeholder:'Ej. ILS Z 17L', urlPlaceholder:'https://… enlace a carta de aproximación PDF (opcional)'}),
+        h(EpsEditor,{eps, onChange:setEps}),
         h(StarsEditor,{stars, eps, onChange:setStars, className:'catcol bare'}),
         dirty && !err && h('div',{style:{fontFamily:'var(--mono)',fontSize:10.5,color:'var(--amber)',marginTop:4}},'● Cambios sin publicar'),
         err && h('div',{style:{fontFamily:'var(--mono)',fontSize:11,color:'var(--red)',marginTop:4}},'⚠ '+err)
@@ -154,7 +182,7 @@ function AirportEditor({user,onClose,onCreate}){
   const [icao,setIcao]=useState('');
   const [city,setCity]=useState('');
   const [name,setName]=useState('');
-  const [rwys,setRwys]=useState(['']);
+  const [rwys,setRwys]=useState([{name:'',url:''}]);
   const [apps,setApps]=useState([]);
   const [eps,setEps]=useState([]);
   const [stars,setStars]=useState([]);
@@ -184,9 +212,9 @@ function AirportEditor({user,onClose,onCreate}){
         h('div',{className:'field'},
           h('label',null,'Nombre del aeródromo'),
           h('input',{value:name,placeholder:'A. Merino Benítez',style:{fontSize:14},onChange:e=>setName(e.target.value)})),
-        h(ListEditor,{label:'Pistas', items:rwys, onChange:setRwys, placeholder:'Ej. 17L', className:'catcol bare'}),
-        h(ListEditor,{label:'Aproximaciones', items:apps, onChange:setApps, placeholder:'Ej. ILS Z 17L', className:'catcol bare'}),
-        h(ListEditor,{label:'Puntos de entrada', items:eps, onChange:setEps, placeholder:'Ej. DOSO', className:'catcol bare'}),
+        h(ListEditor,{label:'Pistas', items:rwys, onChange:setRwys, placeholder:'Ej. 17L', urlPlaceholder:'https://… enlace a carta de pista PDF (opcional)'}),
+        h(ListEditor,{label:'Aproximaciones', items:apps, onChange:setApps, placeholder:'Ej. ILS Z 17L', urlPlaceholder:'https://… enlace a carta de aproximación PDF (opcional)'}),
+        h(EpsEditor,{eps, onChange:setEps}),
         h(StarsEditor,{stars, eps, onChange:setStars, className:'catcol bare'}),
         err && h('div',{style:{fontFamily:'var(--mono)',fontSize:11,color:'var(--red)',marginTop:4}},'⚠ '+err)
       ),

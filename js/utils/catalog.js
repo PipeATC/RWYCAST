@@ -2,6 +2,7 @@
 function fieldLabel(f){
   return f==='rwyu'?'PISTAS EN USO':f==='appu'?'APROX. EN USO':f==='epuse'?'STAR EN USO':
          f==='rwys'?'PISTAS':f==='apps'?'APROX.':f==='eps'?'PTOS. ENTRADA':f==='stars'?'STARS':
+         f==='charts'?'CARTAS (PDF)':
          f==='name'?'NOMBRE':f==='city'?'CIUDAD':
          f==='alta'?'ALTA':f==='baja'?'BAJA':f;
 }
@@ -12,6 +13,29 @@ function cleanList(arr){
     if(v && !seen.has(k)){ seen.add(k); out.push(v); } });
   return out;
 }
+// normaliza una lista de ítems con carta [{name,url}]: recorta, descarta sin nombre y
+// duplicados (insensible a mayúsculas), conserva el hipervínculo a la carta PDF.
+function cleanItems(arr){
+  const seen=new Set(), out=[];
+  (arr||[]).forEach(it=>{
+    const name=((it&&it.name)||'').trim(), k=name.toUpperCase(), url=((it&&it.url)||'').trim();
+    if(name && !seen.has(k)){ seen.add(k); out.push({name, url}); }
+  });
+  return out;
+}
+// mapa NOMBRE(MAYÚS) → url a partir de uno o más grupos de ítems (solo con url no vacía)
+function chartsFromItems(...groups){
+  const m={};
+  groups.forEach(items=>(items||[]).forEach(i=>{
+    const name=((i&&i.name)||'').trim(), url=((i&&i.url)||'').trim();
+    if(name && url) m[name.toUpperCase()]=url;
+  }));
+  return m;
+}
+// representación estable del mapa de cartas para diff/bitácora
+function chartsStr(m){ return Object.keys(m||{}).sort().map(k=>k+'→'+m[k]).join(', '); }
+// url de la carta PDF asociada a un nombre (pista/aprox/STAR), o '' si no hay
+function chartUrl(charts, name){ return (charts||{})[((name||'')+'').trim().toUpperCase()]||''; }
 // normaliza STARs [{name,eps:[...]}]: recorta nombres, dedup por nombre, filtra eps a los válidos
 function cleanStars(arr, eps){
   const valid=new Set((eps||[]).map(x=>(x||'').trim().toUpperCase()).filter(Boolean));
@@ -21,7 +45,7 @@ function cleanStars(arr, eps){
     if(name && !seen.has(k)){
       seen.add(k);
       const eList=[...new Set(((s&&s.eps)||[]).map(e=>(e||'').trim().toUpperCase()).filter(e=>valid.has(e)))];
-      out.push({name, eps:eList});
+      out.push({name, eps:eList, url:((s&&s.url)||'').trim()});
     }
   });
   return out;

@@ -17,6 +17,8 @@ const UNITS = [
      rwys / apps  → numeración de pistas y nombres de aproximaciones disponibles
      eps          → puntos de entrada (IAF)
      stars        → [{name, eps:[...]}] cada STAR sirve a uno o más puntos de entrada
+     charts       → {NOMBRE(MAYÚS): url} hipervínculo a la carta PDF (pista/aprox/STAR)
+                    publicada en la IP; en el visor abre el documento en ventana emergente
    Operación (puede haber más de una en uso):
      rwyu / appu  → pistas y aproximaciones EN USO
      epuse        → {puntoEntrada: STAR en uso} — una STAR en uso por punto de entrada */

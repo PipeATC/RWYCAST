@@ -188,7 +188,11 @@ function App(){
       pushToast('warn','ACCESO DENEGADO','Tu rol no permite editar el catálogo de '+icao);
       return {error:'Sin permiso para esta unidad'};
     }
-    const rwys=cleanList(lists.rwys), apps=cleanList(lists.apps), eps=cleanList(lists.eps), stars=cleanStars(lists.stars, eps);
+    const rwyItems=cleanItems(lists.rwys), appItems=cleanItems(lists.apps), eps=cleanList(lists.eps);
+    const starItems=cleanStars(lists.stars, eps);
+    const rwys=rwyItems.map(i=>i.name), apps=appItems.map(i=>i.name);
+    const stars=starItems.map(s=>({name:s.name,eps:s.eps}));
+    const charts=chartsFromItems(rwyItems, appItems, starItems);   // NOMBRE→url de carta PDF
     if(!rwys.length) return {error:'Debe existir al menos una pista'};
     // datos de identificación (edición completa); si no vienen, se conservan los actuales
     const name=(lists.name!==undefined ? (lists.name||'').trim() : target.name)||target.icao;
@@ -204,6 +208,8 @@ function App(){
     cmp('rwys',target.rwys,rwys); cmp('apps',target.apps,apps); cmp('eps',target.eps,eps);
     if(starsStr(target.stars)!==starsStr(stars))
       diff.push({field:'stars', from:starsStr(target.stars)||'—', to:starsStr(stars)||'—'});
+    if(chartsStr(target.charts)!==chartsStr(charts))
+      diff.push({field:'charts', from:chartsStr(target.charts)||'—', to:chartsStr(charts)||'—'});
     if(!diff.length){ pushToast('ok','SIN CAMBIOS '+icao,'El aeródromo ya estaba actualizado'); return {ok:true}; }
     // reconcilia la operación vigente (en uso) a lo que sigue existiendo en el catálogo
     let rwyu=(target.rwyu||[]).filter(x=>rwys.includes(x)); if(!rwyu.length) rwyu=[rwys[0]];
@@ -212,7 +218,7 @@ function App(){
     const ts=Date.now();
     const stamp=(user.role==='unit'?target.owner:user.unit)||ROLE_SHORT[user.role]||'ADMIN';
     const newAirports=airports.map(a=>a.icao===icao
-      ? {...a,name,city,rwys,apps,eps,stars,rwyu,appu,epuse,updatedAt:ts,updatedBy:user.name+' · '+stamp,changed:[]}
+      ? {...a,name,city,rwys,apps,eps,stars,charts,rwyu,appu,epuse,updatedAt:ts,updatedBy:user.name+' · '+stamp,changed:[]}
       : a);
     const summary='Catálogo · '+diff.map(d=>fieldLabel(d.field)).join(', ')+' actualizado';
     const logEntry={id:ts,type:'cat',icao,unit:stamp,user:user.name,ts,diff,summary,zulu:nowZ()};
@@ -233,13 +239,17 @@ function App(){
     const icao=(data.icao||'').trim().toUpperCase();
     if(!/^[A-Z0-9]{3,5}$/.test(icao)) return {error:'OACI inválido (3-5 caracteres alfanuméricos)'};
     if(airports.some(a=>a.icao===icao)) return {error:'Ya existe un aeródromo con ese OACI'};
-    const rwys=cleanList(data.rwys), apps=cleanList(data.apps), eps=cleanList(data.eps), stars=cleanStars(data.stars, eps);
+    const rwyItems=cleanItems(data.rwys), appItems=cleanItems(data.apps), eps=cleanList(data.eps);
+    const starItems=cleanStars(data.stars, eps);
+    const rwys=rwyItems.map(i=>i.name), apps=appItems.map(i=>i.name);
+    const stars=starItems.map(s=>({name:s.name,eps:s.eps}));
+    const charts=chartsFromItems(rwyItems, appItems, starItems);
     if(!rwys.length) return {error:'Debe existir al menos una pista'};
     const ts=Date.now();
     const stamp=user.unit||ROLE_SHORT[user.role]||'ADMIN';
     // la unidad propietaria es el propio aeródromo (su OACI): se crea como nueva unidad
     const newAp={icao, city:(data.city||'').trim(), name:(data.name||'').trim()||icao, owner:icao,
-      rwys, apps, eps, stars, rwyu:[rwys[0]], appu:apps.length?[apps[0]]:[], epuse:reconcileEpUse(eps,stars,{}),
+      rwys, apps, eps, stars, charts, rwyu:[rwys[0]], appu:apps.length?[apps[0]]:[], epuse:reconcileEpUse(eps,stars,{}),
       updatedAt:ts, updatedBy:user.name+' · '+stamp, changed:[]};
     const newAirports=[...airports,newAp];
     const logEntry={id:ts,type:'cat',icao,unit:user.unit||stamp,user:user.name,ts,
