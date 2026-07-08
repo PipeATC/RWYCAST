@@ -1,8 +1,8 @@
-// Bitácora — LogView
+// Registro — LogView
 function LogView({logs,user}){
   return h('div',null,
     h('div',{className:'phead',style:{borderTop:'none'}},
-      h('h3',null,'Bitácora de cambios operacionales'),
+      h('h3',null,'Registro de cambios operacionales'),
       h('span',{className:'sub'},logs.length+' EVENTOS · RED NACIONAL')),
     logs.length===0
       ? h('div',{className:'empty'},'Sin cambios registrados en este turno. Las publicaciones de cualquier unidad aparecerán aquí en tiempo real.')

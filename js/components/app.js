@@ -179,13 +179,13 @@ function App(){
     await publishState({_ver:ver, airports:newAirports, logs:newLogs});
   }
 
-  // publica la edición del CATÁLOGO maestro (numeración de pistas, aproximaciones y
+  // publica la edición de la DATA BASE maestra (numeración de pistas, aproximaciones y
   // puntos de entrada con su STAR) de un aeródromo y lo difunde a todas las unidades.
   // admin → cualquier unidad; unit → solo la suya (revalidado en el commit).
   async function commitCatalog(icao, lists){
     const target=airports.find(a=>a.icao===icao);
     if(!canEditAirport(user,target)){
-      pushToast('warn','ACCESO DENEGADO','Tu rol no permite editar el catálogo de '+icao);
+      pushToast('warn','ACCESO DENEGADO','Tu rol no permite editar la Data Base de '+icao);
       return {error:'Sin permiso para esta unidad'};
     }
     const rwyItems=cleanItems(lists.rwys), appItems=cleanItems(lists.apps), eps=cleanList(lists.eps);
@@ -197,7 +197,7 @@ function App(){
     // datos de identificación (edición completa); si no vienen, se conservan los actuales
     const name=(lists.name!==undefined ? (lists.name||'').trim() : target.name)||target.icao;
     const city=(lists.city!==undefined ? (lists.city||'').trim() : (target.city||''));
-    // diff para la bitácora (solo lo que cambió)
+    // diff para el registro (solo lo que cambió)
     const diff=[];
     const cmp=(field,oldArr,newArr)=>{
       const a=(oldArr||[]).join(', '), b=newArr.join(', ');
@@ -220,13 +220,13 @@ function App(){
     const newAirports=airports.map(a=>a.icao===icao
       ? {...a,name,city,rwys,apps,eps,stars,charts,rwyu,appu,epuse,updatedAt:ts,updatedBy:user.name+' · '+stamp,changed:[]}
       : a);
-    const summary='Catálogo · '+diff.map(d=>fieldLabel(d.field)).join(', ')+' actualizado';
+    const summary='Data Base · '+diff.map(d=>fieldLabel(d.field)).join(', ')+' actualizado';
     const logEntry={id:ts,type:'cat',icao,unit:stamp,user:user.name,ts,diff,summary,zulu:nowZ()};
     const newLogs=[logEntry,...logs].slice(0,200);
     seenLogs.current.add(ts);          // nuestro propio cambio no debe auto-alertarnos
     setAirports(newAirports);
     setLogs(newLogs);
-    pushToast('ok','CATÁLOGO '+icao, summary+' — enviado a todas las unidades');
+    pushToast('ok','DATA BASE '+icao, summary+' — enviado a todas las unidades');
     const ver=Date.now();
     lastVer.current=ver;
     await publishState({_ver:ver, airports:newAirports, logs:newLogs});

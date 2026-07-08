@@ -1,4 +1,4 @@
-// Catálogo — fieldLabel / cleanList / cleanStars / reconcileEpUse, …
+// Data Base — fieldLabel / cleanList / cleanStars / reconcileEpUse, …
 function fieldLabel(f){
   return f==='rwyu'?'PISTAS EN USO':f==='appu'?'APROX. EN USO':f==='epuse'?'STAR EN USO':
          f==='rwys'?'PISTAS':f==='apps'?'APROX.':f==='eps'?'PTOS. ENTRADA':f==='stars'?'STARS':
@@ -32,7 +32,7 @@ function chartsFromItems(...groups){
   }));
   return m;
 }
-// representación estable del mapa de cartas para diff/bitácora
+// representación estable del mapa de cartas para diff/registro
 function chartsStr(m){ return Object.keys(m||{}).sort().map(k=>k+'→'+m[k]).join(', '); }
 // url de la carta PDF asociada a un nombre (pista/aprox/STAR), o '' si no hay
 function chartUrl(charts, name){ return (charts||{})[((name||'')+'').trim().toUpperCase()]||''; }

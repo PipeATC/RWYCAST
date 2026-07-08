@@ -7,12 +7,12 @@ const ROLE_LABEL={
   general:'Usuario General',
 };
 const ROLE_SHORT={admin:'ADMIN',unit:'UNIDAD',sector:'SECTOR',general:'GENERAL'};
-const TAB_LABEL={viewer:'Visor',log:'Bitácora',brief:'Briefing',catalog:'Catálogo',users:'Usuarios'};
+const TAB_LABEL={viewer:'Visor',log:'Registro',brief:'Briefing',catalog:'Data Base',users:'Usuarios'};
 const RAIL_META={
   viewer:['Visor operacional',Ic.tower],
-  log:['Bitácora de cambios',Ic.log],
+  log:['Registro de cambios',Ic.log],
   brief:['Briefing de turno',Ic.brief],
-  catalog:['Catálogo de datos',Ic.cfg],
+  catalog:['Data Base de unidades',Ic.cfg],
   users:['Gestión de usuarios',Ic.users],
 };
 
@@ -56,7 +56,7 @@ function canEditAirport(user,ap){
   return false;                                    // sector / general → lectura
 }
 function canManageUsers(user){ return !!user && user.role==='admin'; }
-// ¿Puede el usuario acceder al módulo Catálogo? (admin = toda la red, unit = su unidad)
+// ¿Puede el usuario acceder al módulo Data Base? (admin = toda la red, unit = su unidad)
 function canUseCatalog(user){ return !!user && (user.role==='admin'||user.role==='unit'); }
 // ¿Puede agregar/eliminar unidades aeroportuarias? (solo Administrador General)
 function canManageAirports(user){ return !!user && user.role==='admin'; }

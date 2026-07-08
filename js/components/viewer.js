@@ -175,7 +175,7 @@ function Editor({ap,user,onClose,onSave}){
               return h('div',{className:'epuserow',key:i},
                 h('div',{className:'epusep'}, ep),
                 opts.length===0
-                  ? h('span',{className:'epusenone'},'sin STAR en catálogo')
+                  ? h('span',{className:'epusenone'},'sin STAR en Data Base')
                   : h('div',{className:'seg'}, opts.map(o=>h('button',{key:o,
                       className:(epuse[ep]===o)?'on':'',
                       onClick:()=>setEpuse({...epuse,[ep]:o})},o))));

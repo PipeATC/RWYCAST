@@ -51,7 +51,7 @@ function UserEditor({rec,currentUser,airports,users,onClose,onCreate,onSave}){
   const unitOpts=Array.from(new Map(
     (airports||[]).map(a=>[a.owner,{code:a.owner,label:a.icao+' · '+a.name}])).values());
   // si el usuario ya tenía unidades que ya no están en el catálogo, las conservamos como opción
-  units.forEach(u=>{ if(u && !unitOpts.some(o=>o.code===u)) unitOpts.unshift({code:u,label:u+' · (fuera de catálogo)'}); });
+  units.forEach(u=>{ if(u && !unitOpts.some(o=>o.code===u)) unitOpts.unshift({code:u,label:u+' · (fuera de Data Base)'}); });
   // usuarios de unidad disponibles como "padre" de un sector/general
   const parentOpts=Object.values(users||{})
     .filter(u=>u.role==='unit')
@@ -92,11 +92,11 @@ function UserEditor({rec,currentUser,airports,users,onClose,onCreate,onSave}){
             ROLES.map(r=>h('option',{key:r,value:r},ROLE_LABEL[r])))),
         needUnit && h('div',{className:'field'},
           h('label',null, multi?'Unidades asignadas ':'Unidad asignada ',
-            h('span',{className:'hint'}, multi?'una o varias del catálogo':'unidades del catálogo')),
+            h('span',{className:'hint'}, multi?'una o varias de la Data Base':'unidades de la Data Base')),
           unitOpts.length===0
             ? h('div',{style:{fontFamily:'var(--mono)',fontSize:11,color:'var(--amber)',
                 border:'1px solid var(--amber-deep)',padding:'10px 12px',lineHeight:1.5}},
-                'No hay unidades en el catálogo. Crea primero un aeródromo en el módulo Catálogo.')
+                'No hay unidades en la Data Base. Crea primero un aeródromo en el módulo Data Base.')
             : multi
               ? h('div',{style:{display:'flex',flexDirection:'column',gap:6,maxHeight:200,overflowY:'auto',
                   border:'1px solid var(--line)',padding:'8px 10px'}},

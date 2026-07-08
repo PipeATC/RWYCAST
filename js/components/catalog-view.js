@@ -1,4 +1,4 @@
-// Catálogo UI — CatalogAdmin / CatalogUnitEditor / AirportEditor, …
+// Data Base UI — CatalogAdmin / CatalogUnitEditor / AirportEditor, …
 function CatalogAdmin({airports,user,onSave,onCreate,onDelete}){
   const [adding,setAdding]=useState(false);
   const [editing,setEditing]=useState(null);   // OACI del aeródromo en edición (drawer)
@@ -8,7 +8,7 @@ function CatalogAdmin({airports,user,onSave,onCreate,onDelete}){
   const current=editing?airports.find(a=>a.icao===editing):null;
   return h('div',null,
     h('div',{className:'phead',style:{borderTop:'none'}},
-      h('h3',null,'Catálogo de unidades aeroportuarias'),
+      h('h3',null,'Data Base de unidades aeroportuarias'),
       h('span',{className:'sub'}, editable.length+' AERÓDROMO'+(editable.length===1?'':'S')+' · '+scope)),
     h('div',{className:'catwrap'},
       h('div',{className:'catnote'},
@@ -116,7 +116,7 @@ function StarsEditor({stars,eps,onChange,className}){
 }
 
 /* ---------------- Edición completa de una unidad aeroportuaria (drawer) ----------------
-   Se abre desde el listado del Catálogo con el botón Editar. Permite modificar nombre,
+   Se abre desde el listado de la Data Base con el botón Editar. Permite modificar nombre,
    ciudad, pistas, aproximaciones, puntos de entrada y STAR. El OACI es la identidad y no
    se edita. admin → cualquier unidad; usuario de unidad → solo las suyas. */
 function CatalogUnitEditor({a,user,onClose,onSave,onDelete}){
