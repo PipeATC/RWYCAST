@@ -42,8 +42,8 @@ function UserEditor({rec,currentUser,airports,onClose,onCreate,onSave}){
   const [active,setActive]=useState(rec?rec.active!==false:true);
   const [password,setPassword]=useState('');
   const [err,setErr]=useState(''); const [busy,setBusy]=useState(false);
-  const needUnit=roleNeedsUnit(role);   // unidad (varias) y general (una) se asignan a unidad(es)
-  const multi=role==='unit';            // el usuario de unidad puede gestionar varias
+  const needUnit=roleNeedsUnit(role);   // unidad (varias); sector y general (una) pertenecen a una unidad
+  const multi=role==='unit';            // solo el usuario de unidad puede gestionar varias
   // unidades disponibles = aeródromos del catálogo (dedup por propietario)
   const unitOpts=Array.from(new Map(
     (airports||[]).map(a=>[a.owner,{code:a.owner,label:a.icao+' · '+a.name}])).values());
@@ -52,7 +52,7 @@ function UserEditor({rec,currentUser,airports,onClose,onCreate,onSave}){
   const roleHelp =
     role==='admin'  ? 'Acceso total: gestiona usuarios y edita cualquier unidad del país.' :
     role==='unit'   ? 'Edita pistas/STAR/aprox de TODAS sus unidades asignadas (una o varias).' :
-    role==='sector' ? 'Solo visualización operativa (sin edición de datos).' :
+    role==='sector' ? 'Pertenece a una unidad. Solo visualización operativa (sin edición de datos).' :
                       'Solo accede al Briefing de turno de su unidad asignada.';
   const submit=async()=>{
     setBusy(true); setErr('');

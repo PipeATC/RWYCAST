@@ -332,10 +332,10 @@ function App(){
     if(!USERNAME_RE.test(data.username)) return {error:'Usuario inválido (3-32 · letras, números, _ o -)'};
     if(usersMapRef.current[data.username]) return {error:'Ya existe ese usuario'};
     if(!data.password||data.password.length<6) return {error:'La contraseña debe tener 6+ caracteres'};
-    // unidad → una o varias; general → una sola (se recorta al primer elemento)
+    // unidad → una o varias; sector y general → una sola (se recorta al primer elemento)
     let units = roleNeedsUnit(data.role) ? (data.units||[]).filter(Boolean) : [];
-    if(data.role==='general') units=units.slice(0,1);
-    if(roleNeedsUnit(data.role) && !units.length) return {error:'Selecciona al menos una unidad asignada'};
+    if(roleSingleUnit(data.role)) units=units.slice(0,1);
+    if(roleNeedsUnit(data.role) && !units.length) return {error:'Selecciona la unidad a la que pertenece'};
     const salt=randSalt(); const passHash=await hashPassword(data.password,salt);
     await writeUserDb(data.username,{
       username:data.username, name:data.name||data.username, role:data.role,
@@ -359,8 +359,8 @@ function App(){
     let units = roleNeedsUnit(role)
       ? (patch.units!==undefined ? (patch.units||[]).filter(Boolean) : userUnits(cur))
       : [];
-    if(role==='general') units=units.slice(0,1);
-    if(roleNeedsUnit(role) && !units.length) return {error:'Selecciona al menos una unidad asignada'};
+    if(roleSingleUnit(role)) units=units.slice(0,1);
+    if(roleNeedsUnit(role) && !units.length) return {error:'Selecciona la unidad a la que pertenece'};
     await writeUserDb(username,{
       ...cur,
       name:patch.name!==undefined?patch.name:cur.name,

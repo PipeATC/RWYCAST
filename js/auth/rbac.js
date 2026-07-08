@@ -16,8 +16,11 @@ const RAIL_META={
   users:['Gestión de usuarios',Ic.users],
 };
 
-// Roles que se asignan a una unidad aeroportuaria específica (unidad y general)
-function roleNeedsUnit(role){ return role==='unit'||role==='general'; }
+// Roles que se asignan a una unidad aeroportuaria específica.
+// unit → una o varias; sector y general → una (pertenecen a un usuario de unidad).
+function roleNeedsUnit(role){ return role==='unit'||role==='sector'||role==='general'; }
+// Roles que pertenecen a una única unidad (no pueden gestionar varias)
+function roleSingleUnit(role){ return role==='sector'||role==='general'; }
 // Unidades aeroportuarias que gestiona el usuario. El usuario de unidad puede tener
 // varias (units[]); general una. Acepta tanto un perfil de sesión como un registro DB.
 function userUnits(u){
