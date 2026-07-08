@@ -87,6 +87,15 @@ function App(){
 
   const addWatch=icao=>setWatch(w=>w.includes(icao)?w:[...w,icao]);
   const removeWatch=icao=>setWatch(w=>w.filter(x=>x!==icao));
+  // reordena "Mi jurisdicción": mueve la tarjeta dragIcao a la posición de overIcao.
+  // El orden vive en el arreglo watch, que se persiste por usuario (localStorage).
+  const reorderWatch=(dragIcao,overIcao)=>setWatch(w=>{
+    const from=w.indexOf(dragIcao), to=w.indexOf(overIcao);
+    if(from<0||to<0||from===to) return w;
+    const next=w.slice();
+    next.splice(to,0,next.splice(from,1)[0]);
+    return next;
+  });
 
   function applyRemote(s, signal){
     lastVer.current=s._ver||0;
@@ -404,6 +413,11 @@ function App(){
     if(q && !(a.icao.includes(q)||a.city.toUpperCase().includes(q)||a.name.toUpperCase().includes(q))) return false;
     return true;
   });
+  // en "Mi jurisdicción" las tarjetas se ordenan según la posición guardada en watch
+  if(filter==='mine'){
+    const pos=new Map(watch.map((ic,i)=>[ic,i]));
+    visible.sort((a,b)=>(pos.has(a.icao)?pos.get(a.icao):1e9)-(pos.has(b.icao)?pos.get(b.icao):1e9));
+  }
   const changedNow=airports.filter(a=>a.changed&&a.changed.length).length;
 
   return h('div',{style:{display:'contents'}},
@@ -413,7 +427,7 @@ function App(){
         alerts.length>0 && h(AlertBanner,{alerts,onAck:ackAlert,onAckAll:ackAll}),
         view==='viewer' && h(Viewer,{airports:visible,allAirports:airports,allCount:airports.length,mine:mine.length,changedNow,
           query,setQuery,filter,setFilter,user,onEdit:setEditing,metars,
-          watch,onAddWatch:addWatch,onRemoveWatch:removeWatch}),
+          watch,onAddWatch:addWatch,onRemoveWatch:removeWatch,onReorder:reorderWatch}),
         view==='log' && h(LogView,{logs,user}),
         view==='brief' && h(Briefing,{airports,logs,user,metars}),
         view==='catalog' && canUseCatalog(user) && h(CatalogAdmin,{airports,user,onSave:commitCatalog,

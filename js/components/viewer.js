@@ -1,9 +1,40 @@
 // Visor operacional — Viewer / AirportCard / Editor, …
-function Viewer({airports,allAirports,allCount,mine,changedNow,query,setQuery,filter,setFilter,user,onEdit,metars,watch,onAddWatch,onRemoveWatch}){
+function Viewer({airports,allAirports,allCount,mine,changedNow,query,setQuery,filter,setFilter,user,onEdit,metars,watch,onAddWatch,onRemoveWatch,onReorder}){
   const [adding,setAdding]=useState(false);
+  const [dragIcao,setDragIcao]=useState(null);   // OACI de la tarjeta que se arrastra
   const ifrCount=airports.filter(a=>{const m=metars[a.icao];return m&&(m.cat==='IFR'||m.cat==='LIFR');}).length;
   const mineMode=filter==='mine';
   const available=allAirports.filter(a=>!watch.includes(a.icao));
+  // sólo se puede reordenar en Mi jurisdicción, sin búsqueda activa (orden = watch)
+  const canReorder=mineMode && !query.trim() && typeof onReorder==='function' && airports.length>1;
+
+  // arrastre con Pointer Events (mouse y táctil). Al pasar sobre otra tarjeta,
+  // reordena en vivo; el nuevo orden se persiste en la configuración del usuario.
+  const startDrag=icao=>e=>{
+    if(!canReorder) return;
+    e.preventDefault();
+    setDragIcao(icao);
+    let lastOver=icao;   // evita re-disparar (y oscilar) mientras se está sobre la misma tarjeta
+    document.body.classList.add('reordering');
+    const move=ev=>{
+      const el=document.elementFromPoint(ev.clientX,ev.clientY);
+      const card=el&&el.closest&&el.closest('[data-icao]');
+      const over=card&&card.getAttribute('data-icao');
+      if(over&&over!==icao&&over!==lastOver){ onReorder(icao,over); lastOver=over; }
+      else if(over===icao) lastOver=icao;   // volvió sobre sí misma: permite reordenar de nuevo
+    };
+    const up=()=>{
+      setDragIcao(null);
+      document.body.classList.remove('reordering');
+      window.removeEventListener('pointermove',move);
+      window.removeEventListener('pointerup',up);
+      window.removeEventListener('pointercancel',up);
+    };
+    window.addEventListener('pointermove',move);
+    window.addEventListener('pointerup',up);
+    window.addEventListener('pointercancel',up);
+  };
+
   return h('div',null,
     h('div',{className:'gridwrap'},
       h('div',{className:'toolbar'},
@@ -12,11 +43,14 @@ function Viewer({airports,allAirports,allCount,mine,changedNow,query,setQuery,fi
         h('button',{className:'filterbtn'+(mineMode?' on':''),onClick:()=>setFilter('mine')},'Mi jurisdicción'),
         h('button',{className:'filterbtn'+(filter==='all'?' on':''),onClick:()=>setFilter('all')},'Toda la red'),
       ),
+      canReorder && h('div',{className:'reorderhint'},'↕ Arrastra el asa de cada tarjeta para reordenar tu jurisdicción'),
       (!mineMode && airports.length===0)
         ? h('div',{className:'empty'},'Sin aeródromos que coincidan con el filtro.')
         : h('div',{className:'apgrid'},
             airports.map(a=>h(AirportCard,{key:a.icao,a,user,onEdit,metars,
-              onRemove:mineMode?onRemoveWatch:null})),
+              onRemove:mineMode?onRemoveWatch:null,
+              onDragHandle:canReorder?startDrag(a.icao):null,
+              dragging:dragIcao===a.icao})),
             mineMode && h(AddCard,{key:'__add',onClick:()=>setAdding(true)}))
     ),
     adding && h(AddPicker,{available,onAdd:onAddWatch,onClose:()=>setAdding(false)})
@@ -84,7 +118,7 @@ function chartList(names,charts,onOpen){
   return out;
 }
 
-function AirportCard({a,user,onEdit,metars,onRemove}){
+function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
   const owns=userUnits(user).includes(a.owner);
   const canEdit=canEditAirport(user,a);
   const m=metars[a.icao];
@@ -92,8 +126,10 @@ function AirportCard({a,user,onEdit,metars,onRemove}){
   const fldNode=(key,label,arr)=>h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
     h('div',{className:'k'},label),
     h('div',{className:'val'+((arr&&arr.length)?'':' empty')}, (arr&&arr.length)?chartList(arr,a.charts,openChart):'—'));
-  return h('div',{className:'apcard'+(chg.length?' changed':'')},
+  return h('div',{className:'apcard'+(chg.length?' changed':'')+(dragging?' dragging':''),'data-icao':a.icao},
     h('div',{className:'crest'},
+      onDragHandle && h('span',{className:'draghandle',title:'Arrastra para reordenar',
+        onPointerDown:onDragHandle,style:{touchAction:'none'}},'⠿'),
       h('div',null,
         h('div',{className:'icao'},a.icao),
         h('div',{className:'nm'},a.name),
