@@ -57,6 +57,12 @@
     display:flex;align-items:stretch;gap:0;height:54px;flex:0 0 auto;
     border-bottom:1px solid var(--line);background:linear-gradient(180deg,var(--panel-2),var(--panel));
     z-index:40;
+    /* PWA instalada: la barra de estado del dispositivo (hora/conexiones) es translúcida y
+       se superpone. Extendemos la barra superior detrás de ella y bajamos su contenido. */
+    padding-top:env(safe-area-inset-top);
+    height:calc(54px + env(safe-area-inset-top));
+    padding-left:env(safe-area-inset-left);
+    padding-right:env(safe-area-inset-right);
   }
   .brand{display:flex;align-items:center;gap:11px;padding:0 18px;border-right:1px solid var(--line);min-width:220px}
   .brand .glyph{width:24px;height:24px;flex:0 0 auto;filter:drop-shadow(var(--glow))}
@@ -236,7 +242,7 @@
   @keyframes fade{from{opacity:0}to{opacity:1}}
   @keyframes slidein{from{transform:translateX(30px);opacity:.4}to{transform:translateX(0);opacity:1}}
   .drawer{width:min(480px,100%);height:100%;background:var(--panel);border-left:1px solid var(--phos);box-shadow:-30px 0 60px rgba(0,0,0,.5);display:flex;flex-direction:column;animation:slidein .22s}
-  .drawer .dhead{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
+  .drawer .dhead{padding:calc(18px + env(safe-area-inset-top)) 20px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
   .drawer .dhead .icao{font-family:var(--mono);font-weight:800;font-size:24px;color:var(--phos);text-shadow:var(--glow)}
   .drawer .dhead .x{margin-left:auto;background:none;border:1px solid var(--line);color:var(--ink-dim);width:32px;height:32px;cursor:pointer;font-size:16px}
   .drawer .x:hover{color:var(--ink);border-color:var(--ink-faint)}
@@ -261,7 +267,7 @@
   .epusep{font-family:var(--mono);font-size:13px;font-weight:800;color:var(--phos);min-width:62px;letter-spacing:.04em}
   .epuserow .seg{flex:1}
   .epusenone{font-family:var(--mono);font-size:10.5px;color:var(--amber)}
-  .dfoot{padding:16px 20px;border-top:1px solid var(--line);display:flex;gap:10px}
+  .dfoot{padding:16px 20px calc(16px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:10px}
   .btn{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;padding:12px 18px;cursor:pointer;border:1px solid;transition:.14s}
   .btn.primary{background:var(--phos);border-color:var(--phos);color:var(--void)}
   .btn.primary:hover{box-shadow:var(--glow)}
