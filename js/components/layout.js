@@ -16,7 +16,7 @@ function TopBar({user,clock,view,setView,unread,onLogout}){
         h('div',{className:'z'},clock.utc)),
     ),
     h('div',{className:'who',onClick:onLogout,title:'Cerrar sesión'},
-      h('div',{className:'av'},user.name.replace(/[^A-Za-z]/g,'').slice(0,4).toUpperCase()),
+      h('div',{className:'av'},user.name.replace(/[^A-Za-z]/g,'').slice(0,5).toUpperCase()),
       h('div',{className:'meta'},
         h('b',null,user.name),
         h('br'),h('span',null, (()=>{const us=userUnits(user);const lbl=us.length>1?us[0]+' +'+(us.length-1):us[0];
