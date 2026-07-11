@@ -174,6 +174,18 @@
   .epf .k{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--ink-faint);text-transform:uppercase}
   .epf .val{font-family:var(--mono);font-size:15px;font-weight:800;color:var(--ink);margin-top:5px;line-height:1;letter-spacing:.02em}
   .epf .val.empty{color:var(--ink-faint);font-weight:500;font-size:13px}
+  /* botón "+" para desplegar/ocultar la lista completa de puntos de entrada en la tarjeta */
+  .epmore{display:block;width:100%;font-family:var(--mono);font-size:9.5px;font-weight:700;
+    letter-spacing:.12em;text-transform:uppercase;padding:8px;background:var(--panel-2);
+    color:var(--ink-dim);border:none;border-top:1px solid var(--line-soft);cursor:pointer;transition:.13s}
+  .epmore:hover{color:var(--phos);background:var(--panel-3)}
+  /* selectores de puntos de entrada de la tarjeta (panel de edición) */
+  .epselgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  select.epselbox{font-family:var(--mono);font-size:13px;font-weight:700;padding:8px 9px;
+    background:var(--void);border:1px solid var(--line);color:var(--phos);cursor:pointer;
+    appearance:none;-webkit-appearance:none}
+  select.epselbox.empty{color:var(--ink-faint);font-weight:500}
+  select.epselbox:focus{outline:none;border-color:var(--phos)}
   /* nombre con carta PDF: enlace que abre el documento en ventana emergente */
   .chartlink{color:var(--phos);text-decoration:none;cursor:pointer;border-bottom:1px dotted var(--phos);
     transition:.13s;white-space:nowrap}

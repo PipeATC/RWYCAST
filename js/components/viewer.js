@@ -123,6 +123,24 @@ function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
   const canEdit=canEditAirport(user,a);
   const m=metars[a.icao];
   const chg=a.changed||[];
+  // puntos de entrada: la tarjeta muestra los 4 seleccionados por el editor (a.epsel);
+  // el botón "+" despliega la lista completa de forma temporal y vuelve a los 4.
+  const [showAllEps,setShowAllEps]=useState(false);
+  const eps=a.eps||[];
+  const epPrimary=(a.epsel&&a.epsel.length)
+    ? a.epsel.filter(x=>eps.includes(x)).slice(0,4)
+    : eps.slice(0,4);
+  const epShown=showAllEps?eps:epPrimary;
+  const epRow=(ep,i)=>{
+    const inUse=(a.epuse||{})[ep]||'';
+    return h('div',{className:'eprow',key:i},
+      h('div',{className:'epf'},
+        h('div',{className:'k'},'Punto de entrada'),
+        h('div',{className:'val'+(ep?'':' empty')}, ep||'—')),
+      h('div',{className:'epf'},
+        h('div',{className:'k'},'STAR en uso'),
+        h('div',{className:'val'+(inUse?'':' empty')}, inUse?chartName(inUse,a.charts,'star',openChart):'—')));
+  };
   const fldNode=(key,label,arr)=>h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
     h('div',{className:'k'},label),
     h('div',{className:'val'+((arr&&arr.length)?'':' empty')}, (arr&&arr.length)?chartList(arr,a.charts,openChart):'—'));
@@ -141,17 +159,11 @@ function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
     h('div',{className:'opfields two'},
       fldNode('rwyu','Pista en uso', a.rwyu),
       fldNode('appu','Aproximación', a.appu)),
-    (a.eps&&a.eps.length>0) && h('div',{className:'eplist'},
-      a.eps.map((ep,i)=>{
-        const inUse=(a.epuse||{})[ep]||'';
-        return h('div',{className:'eprow',key:i},
-          h('div',{className:'epf'},
-            h('div',{className:'k'},'Punto de entrada'),
-            h('div',{className:'val'+(ep?'':' empty')}, ep||'—')),
-          h('div',{className:'epf'},
-            h('div',{className:'k'},'STAR en uso'),
-            h('div',{className:'val'+(inUse?'':' empty')}, inUse?chartName(inUse,a.charts,'star',openChart):'—')));
-      })),
+    (eps.length>0) && h('div',{className:'eplist'},
+      epShown.map((ep,i)=>epRow(ep,i)),
+      (eps.length>epPrimary.length) && h('button',{className:'epmore',type:'button',
+        onClick:()=>setShowAllEps(v=>!v)},
+        showAllEps?'− Ver 4 puntos':('+ Ver los '+eps.length+' puntos de entrada'))),
     m && h('div',{className:'metarline'},
       m.cat && h('span',{className:'fr '+m.cat},m.cat),
       h('span',null,m.raw),
@@ -172,6 +184,9 @@ function Editor({ap,user,onClose,onSave}){
   const [rwyu,setRwyu]=useState(ap.rwyu||[]);
   const [appu,setAppu]=useState(ap.appu||[]);
   const [epuse,setEpuse]=useState(ap.epuse||{});
+  // puntos de entrada que se muestran en la tarjeta (hasta 4), elegidos de la lista completa
+  const [epsel,setEpsel]=useState((ap.epsel||[]).slice(0,4));
+  const setSlot=(i,val)=>setEpsel(prev=>{ const n=[...prev]; while(n.length<4) n.push(''); n[i]=val; return n; });
   const diff=[];
   const cmpUse=(field,oldArr,newArr)=>{
     const a=(oldArr||[]).join(' / '), b=(newArr||[]).join(' / ');
@@ -180,6 +195,9 @@ function Editor({ap,user,onClose,onSave}){
   cmpUse('rwyu',ap.rwyu,rwyu); cmpUse('appu',ap.appu,appu);
   if(epUseStr(ap.eps,ap.epuse)!==epUseStr(ap.eps,epuse))
     diff.push({field:'epuse',from:epUseStr(ap.eps,ap.epuse),to:epUseStr(ap.eps,epuse)});
+  const selStr=arr=>(arr||[]).filter(Boolean).join(' / ');
+  if(selStr(ap.epsel)!==selStr(epsel))
+    diff.push({field:'epsel',from:selStr(ap.epsel)||'—',to:selStr(epsel)||'—'});
 
   // selección múltiple: alterna la pertenencia de cada opción en el arreglo "en uso"
   const segMulti=(label,opts,sel,set)=>h('div',{className:'field'},
@@ -204,6 +222,18 @@ function Editor({ap,user,onClose,onSave}){
         segMulti('Pistas en uso', ap.rwys, rwyu, setRwyu),
         segMulti('Aproximaciones en uso', ap.apps, appu, setAppu),
         (ap.eps&&ap.eps.length>0) && h('div',{className:'field'},
+          h('label',null,'Puntos de entrada en tarjeta ',h('span',{className:'hint'},'hasta 4')),
+          h('div',{className:'epselgrid'},
+            [0,1,2,3].map(i=>{
+              const cur=epsel[i]||'';
+              const taken=epsel.filter((v,j)=>j!==i&&v);
+              const opts=(ap.eps||[]).filter(e=>!taken.includes(e));
+              return h('select',{key:i,className:'epselbox'+(cur?'':' empty'),value:cur,
+                onChange:e=>setSlot(i,e.target.value)},
+                h('option',{value:''},'— libre —'),
+                opts.map(e=>h('option',{key:e,value:e},e)));
+            }))),
+        (ap.eps&&ap.eps.length>0) && h('div',{className:'field'},
           h('label',null,'STAR en uso por punto de entrada ',h('span',{className:'hint'},'una por punto')),
           h('div',{className:'epuse'},
             ap.eps.map((ep,i)=>{
@@ -223,7 +253,7 @@ function Editor({ap,user,onClose,onSave}){
       h('div',{className:'dfoot'},
         h('button',{className:'btn ghost',style:{flex:1},onClick:onClose},'Cancelar'),
         h('button',{className:'btn primary',style:{flex:2},disabled:diff.length===0||rwyu.length===0,
-          onClick:()=>onSave(ap.icao,{rwyu,appu,epuse},diff)},
+          onClick:()=>onSave(ap.icao,{rwyu,appu,epuse,epsel:epsel.filter(Boolean)},diff)},
           rwyu.length===0?'Selecciona pista en uso'
             :(diff.length?('Publicar '+diff.length+' cambio'+(diff.length>1?'s':'')):'Sin cambios')))
     )
