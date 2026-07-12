@@ -123,27 +123,39 @@ function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
   const canEdit=canEditAirport(user,a);
   const m=metars[a.icao];
   const chg=a.changed||[];
-  // puntos de entrada: la tarjeta muestra los 4 seleccionados por el editor (a.epsel);
-  // el botón "+" despliega la lista completa de forma temporal y vuelve a los 4.
-  const [showAllEps,setShowAllEps]=useState(false);
   const eps=a.eps||[];
-  const epPrimary=(a.epsel&&a.epsel.length)
-    ? a.epsel.filter(x=>eps.includes(x)).slice(0,4)
-    : eps.slice(0,4);
-  const epShown=showAllEps?eps:epPrimary;
-  const epRow=(ep,i)=>{
-    const inUse=(a.epuse||{})[ep]||'';
-    return h('div',{className:'eprow',key:i},
-      h('div',{className:'epf'},
-        h('div',{className:'k'},'Punto de entrada'),
-        h('div',{className:'val'+(ep?'':' empty')}, ep||'—')),
-      h('div',{className:'epf'},
-        h('div',{className:'k'},'STAR en uso'),
-        h('div',{className:'val'+(inUse?'':' empty')}, inUse?chartName(inUse,a.charts,'star',openChart):'—')));
-  };
+  const epList=eps.length?eps:(a.epsel||[]).filter(x=>eps.includes(x));
+  const [selEp,setSelEp]=useState(epList[0]||'');
+  const [selStar,setSelStar]=useState('');
+  const [selApp,setSelApp]=useState('');
+  useEffect(()=>{
+    const ep=epList[0]||'';
+    setSelEp(ep);
+  },[a.icao, epList.join('|')]);
+  const pubStar=(a.epuse||{})[selEp]||'';
+  const starOpts=selEp?starsForEp(a.stars, selEp):[];
+  useEffect(()=>{
+    const next=pubStar||(starOpts[0]||'');
+    setSelStar(next);
+  },[selEp, pubStar, starOpts.join('|')]);
+  const appOpts=appsForStar(a.apps, a.appu, selStar, a.rwyu);
+  useEffect(()=>{
+    setSelApp(pickAppForStar(a.apps, a.appu, selStar, a.rwyu));
+  },[selStar, (a.appu||[]).join('|'), (a.rwyu||[]).join('|'), (a.apps||[]).length]);
   const fldNode=(key,label,arr)=>h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
     h('div',{className:'k'},label),
     h('div',{className:'val'+((arr&&arr.length)?'':' empty')}, (arr&&arr.length)?chartList(arr,a.charts,openChart):'—'));
+  const pickNode=(key,label,value,opts,onPick,renderVal)=>{
+    const empty=!value;
+    return h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
+      h('div',{className:'k'},label),
+      opts.length<=1
+        ? h('div',{className:'val compact'+(empty?' empty':'')},
+            empty?'—':(renderVal?renderVal(value):value))
+        : h('select',{className:'cardpick'+(empty?' empty':''),value:value||'',onChange:e=>onPick(e.target.value)},
+            !value&&h('option',{value:''},'—'),
+            opts.map(o=>h('option',{key:o,value:o},o))));
+  };
   return h('div',{className:'apcard'+(chg.length?' changed':'')+(dragging?' dragging':''),'data-icao':a.icao},
     h('div',{className:'crest'},
       onDragHandle && h('span',{className:'draghandle',title:'Arrastra para reordenar',
@@ -156,14 +168,19 @@ function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
         h('b',null,a.owner),
         owns?h('span',{style:{color:'var(--phos)'}},'MI UNIDAD')
             :(user.role==='admin'?h('span',null,'ADMIN'):h('span',null,'')))),
-    h('div',{className:'opfields two'},
-      fldNode('rwyu','Pista en uso', a.rwyu),
-      fldNode('appu','Aproximación', a.appu)),
-    (eps.length>0) && h('div',{className:'eplist'},
-      epShown.map((ep,i)=>epRow(ep,i)),
-      (eps.length>epPrimary.length) && h('button',{className:'epmore',type:'button',
-        onClick:()=>setShowAllEps(v=>!v)},
-        showAllEps?'− Ver 4 puntos':('+ Ver los '+eps.length+' puntos de entrada'))),
+    eps.length>0
+      ? h(React.Fragment, null,
+          h('div',{className:'opfields two'},
+            fldNode('rwyu','Pista en uso', a.rwyu),
+            pickNode('epsel','Punto de entrada', selEp, epList, setSelEp)),
+          h('div',{className:'opfields two'},
+            pickNode('epuse','STAR en uso', selStar, starOpts, setSelStar,
+              v=>chartName(v,a.charts,'star',openChart)),
+            pickNode('appu','Aproximación', selApp, appOpts, setSelApp,
+              v=>chartName(v,a.charts,'app',openChart))))
+      : h('div',{className:'opfields two'},
+          fldNode('rwyu','Pista en uso', a.rwyu),
+          fldNode('appu','Aproximación', a.appu)),
     m && h('div',{className:'metarline'},
       m.cat && h('span',{className:'fr '+m.cat},m.cat),
       h('span',null,m.raw),

@@ -164,8 +164,14 @@
   .opf:last-child{border-right:none}
   .opf .k{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--ink-faint);text-transform:uppercase}
   .opf .val{font-family:var(--mono);font-size:19px;font-weight:800;color:var(--ink);margin-top:7px;line-height:1;letter-spacing:.02em}
+  .opf .val.compact{font-size:14px;line-height:1.25}
   .opf .val.empty{color:var(--ink-faint);font-weight:500;font-size:14px}
-  /* puntos de entrada con su STAR (apilados hacia abajo) */
+  select.cardpick{display:block;width:100%;margin-top:7px;padding:2px 0;font-family:var(--mono);
+    font-size:14px;font-weight:800;color:var(--ink);background:transparent;border:none;cursor:pointer;
+    appearance:none;-webkit-appearance:none;line-height:1.25}
+  select.cardpick.empty{color:var(--ink-faint);font-weight:500;font-size:13px}
+  select.cardpick:focus{outline:none;color:var(--phos)}
+  /* puntos de entrada con su STAR (apilados hacia abajo) — legacy editor */
   .eplist{border-top:1px solid var(--line-soft)}
   .eprow{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line-soft)}
   .eprow:first-child{border-top:none}

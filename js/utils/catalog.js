@@ -54,6 +54,36 @@ function cleanStars(arr, eps){
 function starsStr(arr){ return (arr||[]).map(s=>s.name+'['+(s.eps||[]).join('/')+']').join(', '); }
 // STARs que sirven a un punto de entrada dado
 function starsForEp(stars, ep){ return (stars||[]).filter(s=>(s.eps||[]).includes(ep)).map(s=>s.name); }
+// aproximaciones plausibles para la STAR seleccionada (tipo + pista en uso)
+function appsForStar(apps, appu, starName, rwyu){
+  const pool=(appu&&appu.length)?appu:(apps||[]);
+  if(!pool.length) return [];
+  if(!starName) return pool;
+  const su=starName.toUpperCase();
+  let f=pool;
+  if(/\bRNP\b/.test(su)||/\bRNAV\b/.test(su)) f=f.filter(a=>/RNP|RNAV/i.test(a));
+  else if(/\bILS\b/.test(su)||/\bLOC\b/.test(su)) f=f.filter(a=>/ILS|LOC/i.test(a));
+  else if(/\bVOR\b/.test(su)||/\s[0-9]+[A-Z]{1,2}$/.test(starName.trim())) f=f.filter(a=>/VOR/i.test(a));
+  const rwys=(rwyu||[]).filter(Boolean);
+  if(rwys.length){
+    const rf=[...new Set(rwys.flatMap(r=>{
+      const s=String(r).trim(), n=s.replace(/^0+/,'')||s;
+      return [s,n,n.padStart(2,'0')];
+    }))];
+    const byRwy=f.filter(a=>rf.some(r=>{
+      const esc=r.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      return new RegExp('RWY\\s*0?'+esc,'i').test(a);
+    }));
+    if(byRwy.length) f=byRwy;
+  }
+  return f.length?f:pool;
+}
+function pickAppForStar(apps, appu, starName, rwyu){
+  const opts=appsForStar(apps,appu,starName,rwyu);
+  if(!opts.length) return '';
+  const inUse=(appu||[]).filter(x=>opts.includes(x));
+  return inUse[0]||opts[0];
+}
 // reconcilia la STAR en uso por punto de entrada contra el catálogo vigente
 function reconcileEpUse(eps, stars, prev){
   const out={};
