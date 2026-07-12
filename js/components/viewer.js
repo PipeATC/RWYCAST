@@ -149,28 +149,21 @@ function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
   const eps=a.eps||[];
   const epList=eps.length?eps:(a.epsel||[]).filter(x=>eps.includes(x));
   const [selEp,setSelEp]=useState(epList[0]||'');
-  const [selStar,setSelStar]=useState('');
-  const [selApp,setSelApp]=useState('');
   useEffect(()=>{
-    const ep=epList[0]||'';
-    setSelEp(ep);
+    setSelEp(epList[0]||'');
   },[a.icao, epList.join('|')]);
-  const pubStar=(a.epuse||{})[selEp]||'';
-  const starOpts=selEp?starsForEp(a.stars, selEp):[];
-  useEffect(()=>{
-    const next=pubStar||(starOpts[0]||'');
-    setSelStar(next);
-  },[selEp, pubStar, starOpts.join('|')]);
-  const appOpts=appsForStar(a.apps, a.appu, selStar, a.rwyu);
-  useEffect(()=>{
-    setSelApp(pickAppForStar(a.apps, a.appu, selStar, a.rwyu));
-  },[selStar, (a.appu||[]).join('|'), (a.rwyu||[]).join('|'), (a.apps||[]).length]);
+  const pubStar=starDisplayVal(a.epuse, selEp);
+  const appShown=appDisplayForStar(a.apps, a.appu, pubStar, a.rwyu);
   const fldNode=(key,label,arr)=>h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
     h('div',{className:'k'},label),
     h('div',{className:'val'+((arr&&arr.length)?'':' empty')}, (arr&&arr.length)?chartList(arr,a.charts,openChart):'—'));
-  const pickNode=(key,label,value,opts,onPick,renderVal)=>h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
+  const txtNode=(key,label,val,renderVal)=>h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
     h('div',{className:'k'},label),
-    h(CardPick,{value:value||'',options:opts,onChange:onPick,renderVal:renderVal}));
+    h('div',{className:'val compact'+(val?'':' empty')},
+      val?(renderVal?renderVal(val):val):'—'));
+  const pickNode=(key,label,value,opts,onPick)=>h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
+    h('div',{className:'k'},label),
+    h(CardPick,{value:value||'',options:opts,onChange:onPick}));
   return h('div',{className:'apcard'+(chg.length?' changed':'')+(dragging?' dragging':''),'data-icao':a.icao},
     h('div',{className:'crest'},
       onDragHandle && h('span',{className:'draghandle',title:'Arrastra para reordenar',
@@ -189,10 +182,8 @@ function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
             fldNode('rwyu','Pista en uso', a.rwyu),
             pickNode('epsel','Punto de entrada', selEp, epList, setSelEp)),
           h('div',{className:'opfields two'},
-            pickNode('epuse','STAR en uso', selStar, starOpts, setSelStar,
-              v=>chartName(v,a.charts,'star',openChart)),
-            pickNode('appu','Aproximación', selApp, appOpts, setSelApp,
-              v=>chartName(v,a.charts,'app',openChart))))
+            txtNode('epuse','STAR en uso', pubStar, v=>chartName(v,a.charts,'star',openChart)),
+            fldNode('appu','Aproximación', appShown)))
       : h('div',{className:'opfields two'},
           fldNode('rwyu','Pista en uso', a.rwyu),
           fldNode('appu','Aproximación', a.appu)),

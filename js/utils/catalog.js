@@ -84,6 +84,17 @@ function pickAppForStar(apps, appu, starName, rwyu){
   const inUse=(appu||[]).filter(x=>opts.includes(x));
   return inUse[0]||opts[0];
 }
+// visor: aproximación publicada por la unidad; si la STAR en uso enlaza una sola, mostrar esa
+function appDisplayForStar(apps, appu, starName, rwyu){
+  const published=(appu||[]).filter(Boolean);
+  if(!published.length) return [];
+  if(!starName) return published;
+  const linked=appsForStar(apps, published, starName, rwyu);
+  return linked.length ? linked : published;
+}
+function starDisplayVal(epuse, ep){
+  return (epuse&&ep&&epuse[ep])||'';
+}
 // reconcilia la STAR en uso por punto de entrada contra el catálogo vigente
 function reconcileEpUse(eps, stars, prev){
   const out={};
