@@ -180,21 +180,24 @@
   .opf .val{font-family:var(--mono);font-size:19px;font-weight:800;color:var(--ink);margin-top:7px;line-height:1;letter-spacing:.02em}
   .opf .val.compact{font-size:14px;line-height:1.25}
   .opf .val.empty{color:var(--ink-faint);font-weight:500;font-size:14px}
-  /* filas: punto de entrada (izq) | STAR (centro) | aproximación (der) — mismo tamaño de letra */
-  .epflow{display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid var(--line-soft)}
-  .epflow.head{background:rgba(0,0,0,.12)}
-  .epcol{padding:11px 12px;border-right:1px solid var(--line-soft);min-width:0}
-  .epcol:last-child{border-right:none}
-  .epflow.head .epcol{padding:8px 12px}
-  .epc-ep{text-align:left}
-  .epc-star{text-align:center}
-  .epc-app{text-align:right}
+  /* filas: punto de entrada (izq) | STAR (centro) | aproximación (der)
+     una sola grilla → columnas auto-ajustadas al contenido y alineadas entre filas */
+  .eplist{display:grid;grid-template-columns:auto auto minmax(0,1fr)}
+  .epflow{display:contents}
+  .epcol{padding:10px 12px;border-top:1px solid var(--line-soft);border-right:1px solid var(--line-soft);
+    min-width:0;display:flex;flex-direction:column;justify-content:center}
+  .epcol.epc-app{border-right:none}
+  .epflow.head .epcol{padding:8px 12px;background:rgba(0,0,0,.12)}
+  .epc-ep{text-align:left;align-items:flex-start}
+  .epc-star{text-align:center;align-items:center}
+  .epc-app{text-align:right;align-items:flex-end}
   .epflow .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;color:var(--ink-faint);text-transform:uppercase}
   .ep-name{font-family:var(--mono);font-size:13px;font-weight:800;color:var(--phos);line-height:1.25;letter-spacing:.03em;overflow-wrap:anywhere}
   .ep-star{font-family:var(--mono);font-size:13px;font-weight:800;color:var(--ink);line-height:1.25;overflow-wrap:anywhere}
   .ep-star.empty{color:var(--ink-faint);font-weight:500}
   .ep-app{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--ink);line-height:1.25;letter-spacing:.01em;overflow-wrap:anywhere}
   .ep-app.empty{color:var(--ink-faint);font-weight:500}
+  .eplist .epmore{grid-column:1 / -1}
   /* puntos de entrada con su STAR (apilados hacia abajo) — legacy editor */
   /* botón "+" para desplegar/ocultar la lista completa de puntos de entrada en la tarjeta */
   .epmore{display:block;width:100%;font-family:var(--mono);font-size:9.5px;font-weight:700;
