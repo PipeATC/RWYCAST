@@ -140,7 +140,7 @@
   .filterbtn:hover{color:var(--ink);border-color:var(--ink-faint)}
   .filterbtn.on{color:var(--phos);border-color:var(--phos);background:rgba(63,240,168,.06)}
 
-  .apgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+  .apgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,400px));gap:14px;justify-content:start}
 
   .apcard{border:1px solid var(--line);background:linear-gradient(180deg,var(--panel-2),var(--panel));position:relative;overflow:hidden;transition:box-shadow .15s,opacity .15s,border-color .15s}
   /* reordenamiento (drag & drop) de Mi jurisdicción */
@@ -185,8 +185,7 @@
   .eplist{display:grid;grid-template-columns:1fr 1fr 1fr}
   .epflow{display:contents}
   .epcol{padding:10px 12px;border-top:1px solid var(--line-soft);border-right:1px solid var(--line-soft);
-    min-width:0;display:flex;flex-direction:column;justify-content:center;
-    text-align:justify;text-align-last:justify}
+    min-width:0;display:flex;flex-direction:column;justify-content:center;text-align:left}
   .epcol.epc-app{border-right:none}
   .epflow.head .epcol{padding:8px 12px;background:rgba(0,0,0,.12)}
   .epflow .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;color:var(--ink-faint);text-transform:uppercase}
