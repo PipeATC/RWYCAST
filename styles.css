@@ -180,21 +180,21 @@
   .opf .val{font-family:var(--mono);font-size:19px;font-weight:800;color:var(--ink);margin-top:7px;line-height:1;letter-spacing:.02em}
   .opf .val.compact{font-size:14px;line-height:1.25}
   .opf .val.empty{color:var(--ink-faint);font-weight:500;font-size:14px}
-  /* filas EP+STAR | aprox (visor, sin dropdown) */
-  .epflow{display:grid;grid-template-columns:1fr 1.15fr;border-top:1px solid var(--line-soft)}
+  /* filas: punto de entrada (izq) | STAR (centro) | aproximación (der) — mismo tamaño de letra */
+  .epflow{display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid var(--line-soft)}
   .epflow.head{background:rgba(0,0,0,.12)}
-  .epflow-l{padding:10px 12px;border-right:1px solid var(--line-soft);min-width:0;
-    display:flex;flex-direction:column;justify-content:center;gap:3px}
-  .epflow-r{padding:10px 12px;min-width:0;display:flex;align-items:center;justify-content:center;text-align:center}
-  .epflow.head .epflow-l{padding:8px 12px;gap:0}
-  .epflow.head .epflow-r{align-items:flex-start;padding:8px 12px}
+  .epcol{padding:11px 12px;border-right:1px solid var(--line-soft);min-width:0}
+  .epcol:last-child{border-right:none}
+  .epflow.head .epcol{padding:8px 12px}
+  .epc-ep{text-align:left}
+  .epc-star{text-align:center}
+  .epc-app{text-align:right}
   .epflow .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;color:var(--ink-faint);text-transform:uppercase}
-  .epflow .k.sub{margin-top:2px}
-  .ep-name{font-family:var(--mono);font-size:15px;font-weight:800;color:var(--phos);line-height:1.15;letter-spacing:.04em}
-  .ep-star{font-family:var(--mono);font-size:13px;font-weight:800;color:var(--ink);line-height:1.2;margin-top:2px}
-  .ep-star.empty{color:var(--ink-faint);font-weight:500;font-size:12px}
-  .ep-app{font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--ink);line-height:1.3;letter-spacing:.01em;text-align:center;align-self:center}
-  .ep-app.empty{color:var(--ink-faint);font-weight:500;font-size:12px}
+  .ep-name{font-family:var(--mono);font-size:13px;font-weight:800;color:var(--phos);line-height:1.25;letter-spacing:.03em;overflow-wrap:anywhere}
+  .ep-star{font-family:var(--mono);font-size:13px;font-weight:800;color:var(--ink);line-height:1.25;overflow-wrap:anywhere}
+  .ep-star.empty{color:var(--ink-faint);font-weight:500}
+  .ep-app{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--ink);line-height:1.25;letter-spacing:.01em;overflow-wrap:anywhere}
+  .ep-app.empty{color:var(--ink-faint);font-weight:500}
   /* puntos de entrada con su STAR (apilados hacia abajo) — legacy editor */
   /* botón "+" para desplegar/ocultar la lista completa de puntos de entrada en la tarjeta */
   .epmore{display:block;width:100%;font-family:var(--mono);font-size:9.5px;font-weight:700;

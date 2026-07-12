@@ -118,20 +118,21 @@ function chartList(names,charts,onOpen){
   return out;
 }
 
-// fila fija: EP + STAR (izq) | aproximación (der)
+// fila fija: punto de entrada (izq) | STAR (centro) | aproximación (der)
 function EpFlowRow({ep,star,apps,charts,head}){
   if(head) return h('div',{className:'epflow head'},
-    h('div',{className:'epflow-l'},
-      h('span',{className:'k'},'Punto de entrada'),
-      h('span',{className:'k sub'},'STAR en uso')),
-    h('div',{className:'epflow-r k'},'Aproximación'));
+    h('div',{className:'epcol epc-ep k'},'Punto de entrada'),
+    h('div',{className:'epcol epc-star k'},'STAR en uso'),
+    h('div',{className:'epcol epc-app k'},'Aproximación'));
   return h('div',{className:'epflow'},
-    h('div',{className:'epflow-l'},
-      h('div',{className:'ep-name'},ep||'—'),
+    h('div',{className:'epcol epc-ep'},
+      h('div',{className:'ep-name'},ep||'—')),
+    h('div',{className:'epcol epc-star'},
       h('div',{className:'ep-star'+(star?'':' empty')},
         star?chartName(star,charts,'s',openChart):'—')),
-    h('div',{className:'ep-app'+(apps.length?'':' empty')},
-      apps.length?chartList(apps,charts,openChart):'—'));
+    h('div',{className:'epcol epc-app'},
+      h('div',{className:'ep-app'+(apps.length?'':' empty')},
+        apps.length?chartList(apps,charts,openChart):'—')));
 }
 
 function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
