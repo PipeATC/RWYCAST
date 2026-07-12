@@ -118,27 +118,19 @@ function chartList(names,charts,onOpen){
   return out;
 }
 
-// desplegable compacto para tarjetas del visor (tema oscuro, legible en tablet)
-function CardPick({value,options,onChange,renderVal}){
-  const [open,setOpen]=useState(false);
-  const ref=useRef(null);
-  useEffect(()=>{
-    if(!open) return;
-    const close=e=>{ if(ref.current&&!ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('pointerdown',close);
-    return ()=>document.removeEventListener('pointerdown',close);
-  },[open]);
-  const empty=!value;
-  const shown=empty?'—':(renderVal?renderVal(value):value);
-  if(!options.length) return h('div',{className:'val compact empty'},'—');
-  if(options.length===1) return h('div',{className:'val compact'+(empty?' empty':'')},shown);
-  return h('div',{className:'cardpick-wrap',ref:ref},
-    h('button',{type:'button',className:'cardpick-btn'+(open?' open':'')+(empty?' empty':''),onClick:()=>setOpen(v=>!v)},
-      h('span',{className:'cardpick-lbl'},shown),
-      h('span',{className:'cardpick-caret'},open?'▴':'▾')),
-    open&&h('div',{className:'cardpick-menu'},
-      options.map(o=>h('button',{type:'button',key:o,className:'cardpick-opt'+(o===value?' on':''),
-        onClick:()=>{ onChange(o); setOpen(false); }}, o))));
+// fila fija EP + STAR + aproximación (visor sin interacción)
+function EpFlowRow({ep,star,apps,charts,head}){
+  const cls=head?'eprow3 head':'eprow3';
+  if(head) return h('div',{className:cls},
+    h('div',{className:'epc k'},'Punto'),
+    h('div',{className:'epc k'},'STAR'),
+    h('div',{className:'epc k'},'Aprox'));
+  return h('div',{className:cls},
+    h('div',{className:'epc v ep-name'},ep||'—'),
+    h('div',{className:'epc v'+(star?'':' empty')},
+      star?chartName(star,charts,'s',openChart):'—'),
+    h('div',{className:'epc v compact'+(apps.length?'':' empty')},
+      apps.length?chartList(apps,charts,openChart):'—'));
 }
 
 function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
@@ -147,23 +139,13 @@ function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
   const m=metars[a.icao];
   const chg=a.changed||[];
   const eps=a.eps||[];
-  const epList=eps.length?eps:(a.epsel||[]).filter(x=>eps.includes(x));
-  const [selEp,setSelEp]=useState(epList[0]||'');
-  useEffect(()=>{
-    setSelEp(epList[0]||'');
-  },[a.icao, epList.join('|')]);
-  const pubStar=starDisplayVal(a.stars, a.epuse, selEp);
-  const appShown=appDisplayForStar(a.apps, a.appu, pubStar, a.rwyu);
-  const fldNode=(key,label,arr)=>h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
-    h('div',{className:'k'},label),
-    h('div',{className:'val'+((arr&&arr.length)?'':' empty')}, (arr&&arr.length)?chartList(arr,a.charts,openChart):'—'));
-  const txtNode=(key,label,val,renderVal)=>h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
-    h('div',{className:'k'},label),
-    h('div',{className:'val compact'+(val?'':' empty')},
-      val?(renderVal?renderVal(val):val):'—'));
+  const [showAllEps,setShowAllEps]=useState(false);
+  const epPrimary=(a.epsel&&a.epsel.length)
+    ? a.epsel.filter(x=>eps.includes(x)).slice(0,4)
+    : eps.slice(0,4);
+  const epShown=showAllEps?eps:epPrimary;
+  useEffect(()=>{ setShowAllEps(false); },[a.icao]);
   const rwyTxt=(a.rwyu&&a.rwyu.length)?a.rwyu.join(' / '):'—';
-  const rowNode=(key,label,content)=>h('div',{className:'opslot'+(chg.includes(key)?' changed':'')},
-    h('div',{className:'k'},label), content);
   return h('div',{className:'apcard'+(chg.length?' changed':'')+(dragging?' dragging':''),'data-icao':a.icao},
     h('div',{className:'crest'},
       onDragHandle && h('span',{className:'draghandle',title:'Arrastra para reordenar',
@@ -180,12 +162,16 @@ function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
         h('div',{className:'k'},'Pista en uso'),
         h('div',{className:'rwyhero'+(chg.includes('rwyu')?' changed':'')}, rwyTxt))),
     eps.length>0
-      ? h('div',{className:'apstack'},
-          rowNode('epsel','Punto de entrada',
-            h(CardPick,{value:selEp||'',options:epList,onChange:setSelEp})),
-          h('div',{className:'opfields two'},
-            txtNode('epuse','STAR en uso', pubStar, v=>chartName(v,a.charts,'star',openChart)),
-            fldNode('appu','Aproximación', appShown)))
+      ? h('div',{className:'apstack eplist'},
+          h(EpFlowRow,{head:true}),
+          epShown.map(ep=>{
+            const star=starDisplayVal(a.stars,a.epuse,ep);
+            const apps=appDisplayForStar(a.apps,a.appu,star,a.rwyu);
+            return h(EpFlowRow,{key:ep,ep,star,apps,charts:a.charts});
+          }),
+          (eps.length>epPrimary.length)&&h('button',{type:'button',className:'epmore',
+            onClick:()=>setShowAllEps(v=>!v)},
+            showAllEps?'− Ver 4 puntos':('+ Ver los '+eps.length+' puntos de entrada')))
       : h('div',{className:'apstack'},
           h('div',{className:'opslot'},
             h('div',{className:'k'},'Aproximación'),
