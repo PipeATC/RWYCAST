@@ -1,5 +1,5 @@
 // Visor operacional — Viewer / AirportCard / Editor, …
-function Viewer({airports,allAirports,allCount,mine,changedNow,query,setQuery,filter,setFilter,user,onEdit,editingIcao,onCancelEdit,onPublish,metars,watch,onAddWatch,onRemoveWatch,onReorder}){
+function Viewer({airports,allAirports,allCount,mine,changedNow,query,setQuery,filter,setFilter,user,onEdit,metars,watch,onAddWatch,onRemoveWatch,onReorder}){
   const [adding,setAdding]=useState(false);
   const [dragIcao,setDragIcao]=useState(null);   // OACI de la tarjeta que se arrastra
   const ifrCount=airports.filter(a=>{const m=metars[a.icao];return m&&(m.cat==='IFR'||m.cat==='LIFR');}).length;
@@ -46,9 +46,8 @@ function Viewer({airports,allAirports,allCount,mine,changedNow,query,setQuery,fi
       canReorder && h('div',{className:'reorderhint'},'↕ Arrastra el asa de cada tarjeta para reordenar tu jurisdicción'),
       (!mineMode && airports.length===0)
         ? h('div',{className:'empty'},'Sin aeródromos que coincidan con el filtro.')
-        : h('div',{className:'apgrid'+(editingIcao?' editing':'')},
+        : h('div',{className:'apgrid'},
             airports.map(a=>h(AirportCard,{key:a.icao,a,user,onEdit,metars,
-              edit:editingIcao===a.icao,onCancelEdit,onPublish,
               onRemove:mineMode?onRemoveWatch:null,
               onDragHandle:canReorder?startDrag(a.icao):null,
               dragging:dragIcao===a.icao})),
@@ -119,33 +118,7 @@ function chartList(names,charts,onOpen){
   return out;
 }
 
-// selector inline: al presionar despliega una lista seleccionable (modo edición)
-function CardPick({value,options,onChange,renderVal,placeholder,className}){
-  const [open,setOpen]=useState(false);
-  const ref=useRef(null);
-  useEffect(()=>{
-    if(!open) return;
-    const close=e=>{ if(ref.current&&!ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('pointerdown',close);
-    return ()=>document.removeEventListener('pointerdown',close);
-  },[open]);
-  const empty=value===''||value==null;
-  const cur=(options||[]).find(o=>o.value===value);
-  const shown=empty?(placeholder||'—'):(renderVal?renderVal(value):(cur?cur.label:value));
-  return h('div',{className:'cardpick-wrap'+(className?' '+className:''),ref:ref},
-    h('button',{type:'button',className:'cardpick-btn'+(open?' open':'')+(empty?' empty':''),
-      onClick:()=>setOpen(v=>!v)},
-      h('span',{className:'cardpick-lbl'},shown),
-      h('span',{className:'cardpick-caret'},open?'▴':'▾')),
-    open&&h('div',{className:'cardpick-menu'},
-      (options||[]).length===0
-        ? h('div',{className:'cardpick-none'},'Sin opciones')
-        : options.map(o=>h('button',{type:'button',key:String(o.value),
-            className:'cardpick-opt'+(o.value===value?' on':''),
-            onClick:()=>{ onChange(o.value); setOpen(false); }}, o.label))));
-}
-
-// fila fija (visor): EP + STAR (izq) | aproximación (der)
+// fila fija: EP + STAR (izq) | aproximación (der)
 function EpFlowRow({ep,star,apps,charts,head}){
   if(head) return h('div',{className:'epflow head'},
     h('div',{className:'epflow-l'},
@@ -161,118 +134,18 @@ function EpFlowRow({ep,star,apps,charts,head}){
       apps.length?chartList(apps,charts,openChart):'—'));
 }
 
-// fila en edición: punto de entrada + STAR (izq) | aproximación (der), todo seleccionable
-function EpEditRow({a,ep,usedEps,epuse,appuse,rwyu,onEp,onStar,onApp,onRemove}){
-  const epOpts=(a.eps||[]).filter(e=>e===ep||!usedEps.includes(e)).map(e=>({value:e,label:e}));
-  const star=epuse[ep]||'';
-  const starOpts=starsForEp(a.stars,ep).map(s=>({value:s,label:s}));
-  const app=appuse[ep]||'';
-  const appPool=appsForStar(a.apps,a.apps,star,rwyu);
-  const appOpts=(appPool.length?appPool:(a.apps||[])).map(x=>({value:x,label:x}));
-  return h('div',{className:'epflow editing'},
-    h('div',{className:'epflow-l'},
-      h(CardPick,{className:'ep',value:ep,options:epOpts,onChange:onEp,placeholder:'Punto —'}),
-      h(CardPick,{className:'star',value:star,options:starOpts,onChange:onStar,placeholder:'STAR —'})),
-    h('div',{className:'epflow-r'},
-      h(CardPick,{className:'app',value:app,options:appOpts,onChange:onApp,placeholder:'Aprox —'}),
-      h('button',{type:'button',className:'eprm',title:'Quitar punto de entrada',onClick:onRemove},'✕')));
-}
-
-function AirportCard({a,user,onEdit,edit,onCancelEdit,onPublish,metars,onRemove,onDragHandle,dragging}){
+function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
   const canEdit=canEditAirport(user,a);
   const m=metars[a.icao];
   const chg=a.changed||[];
   const eps=a.eps||[];
   const [showAllEps,setShowAllEps]=useState(false);
-  // borrador local para la edición inline
-  const [dRwy,setDRwy]=useState('');
-  const [dMode,setDMode]=useState('');
-  const [dSel,setDSel]=useState([]);
-  const [dEpuse,setDEpuse]=useState({});
-  const [dAppuse,setDAppuse]=useState({});
-  useEffect(()=>{ setShowAllEps(false); },[a.icao]);
-  // al entrar en edición, inicializa el borrador desde la operación vigente
-  useEffect(()=>{
-    if(!edit) return;
-    setDRwy((a.rwyu&&a.rwyu[0])||(a.rwys&&a.rwys[0])||'');
-    setDMode(a.rwymode||'');
-    const sel=((a.epsel&&a.epsel.length)?a.epsel:eps).filter(x=>eps.includes(x));
-    setDSel(sel.length?sel.slice(0,8):eps.slice(0,4));
-    setDEpuse({...(a.epuse||{})});
-    setDAppuse({...(a.appuse||{})});
-  },[edit,a.icao]);
-
-  const rwyTxt=(a.rwyu&&a.rwyu.length)?a.rwyu.join(' / ').toUpperCase():'—';
-  const modeTxt=a.rwymode||'—';
-  // aproximación por punto de entrada (appuse); si el aeródromo aún no la tiene, se deriva de appu
-  const appForEp=(ep,star)=>{
-    if(a.appuse&&a.appuse[ep]) return [a.appuse[ep]];
-    return appDisplayForStar(a.apps,a.appu,star,a.rwyu);
-  };
   const epPrimary=(a.epsel&&a.epsel.length)
     ? a.epsel.filter(x=>eps.includes(x)).slice(0,4)
     : eps.slice(0,4);
   const epShown=showAllEps?eps:epPrimary;
-
-  // ---------- modo edición inline ----------
-  if(edit){
-    const rwyOpts=(a.rwys||[]).map(r=>({value:r,label:r.toUpperCase()}));
-    const modeOpts=[{value:'',label:'Ninguna'},{value:'Mixta',label:'Mixta'},
-      {value:'Semi-Mixta',label:'Semi-Mixta'},{value:'Segregada',label:'Segregada'}];
-    const draftRwyu=dRwy?[dRwy]:(a.rwyu||[]);
-    const unused=eps.filter(e=>!dSel.includes(e));
-    const setEpAt=(i,newEp)=>setDSel(prev=>prev.map((e,j)=>j===i?newEp:e));
-    // diff contra la operación vigente
-    const diff=[];
-    const curRwy=(a.rwyu&&a.rwyu[0])||'';
-    if(curRwy!==dRwy) diff.push({field:'rwyu',from:(curRwy||'—').toUpperCase(),to:(dRwy||'—').toUpperCase()});
-    if((a.rwymode||'')!==dMode) diff.push({field:'rwymode',from:(a.rwymode||'Ninguna'),to:(dMode||'Ninguna')});
-    if((a.epsel||[]).join(' / ')!==dSel.join(' / '))
-      diff.push({field:'epsel',from:((a.epsel||[]).join(' / ')||'—'),to:(dSel.join(' / ')||'—')});
-    dSel.forEach(ep=>{
-      if(((a.epuse||{})[ep]||'')!==(dEpuse[ep]||''))
-        diff.push({field:'epuse',from:ep+' → '+(((a.epuse||{})[ep])||'—'),to:ep+' → '+(dEpuse[ep]||'—')});
-      if(((a.appuse||{})[ep]||'')!==(dAppuse[ep]||''))
-        diff.push({field:'appuse',from:ep+' → '+(((a.appuse||{})[ep])||'—'),to:ep+' → '+(dAppuse[ep]||'—')});
-    });
-    const publish=()=>{
-      const appu=[...new Set(dSel.map(ep=>dAppuse[ep]).filter(Boolean))];
-      onPublish(a.icao,{rwyu:dRwy?[dRwy]:[],rwymode:dMode,epsel:dSel,epuse:dEpuse,appuse:dAppuse,appu},diff);
-    };
-    return h('div',{className:'apcard editmode'+(chg.length?' changed':''),'data-icao':a.icao},
-      h('div',{className:'crest'},
-        h('div',{className:'crest-l'},
-          h('div',{className:'icao'},a.icao),
-          h('div',{className:'nm'},a.name),
-          h('div',{className:'city'},a.city.toUpperCase())),
-        h('div',{className:'crest-r'},
-          h('div',{className:'k'},'Pista en uso'),
-          h(CardPick,{className:'rwy',value:dRwy,options:rwyOpts,onChange:setDRwy,
-            renderVal:v=>(v||'—').toUpperCase(),placeholder:'—'}),
-          h('div',{className:'k modek'},'Modalidad'),
-          h(CardPick,{className:'mode',value:dMode,options:modeOpts,onChange:setDMode,
-            renderVal:v=>v||'—',placeholder:'—'}))),
-      h('div',{className:'apstack eplist'},
-        h('div',{className:'epflow head'},
-          h('div',{className:'epflow-l'},
-            h('span',{className:'k'},'Punto de entrada'),
-            h('span',{className:'k sub'},'STAR en uso')),
-          h('div',{className:'epflow-r k'},'Aproximación')),
-        dSel.map((ep,i)=>h(EpEditRow,{key:i,a,ep,usedEps:dSel,epuse:dEpuse,appuse:dAppuse,rwyu:draftRwyu,
-          onEp:v=>setEpAt(i,v),
-          onStar:v=>setDEpuse(prev=>({...prev,[ep]:v})),
-          onApp:v=>setDAppuse(prev=>({...prev,[ep]:v})),
-          onRemove:()=>setDSel(prev=>prev.filter((_,j)=>j!==i))})),
-        unused.length>0 && h('button',{type:'button',className:'epmore',
-          onClick:()=>setDSel(prev=>[...prev,unused[0]])},'+ Agregar punto de entrada')),
-      h('div',{className:'apedit-foot'},
-        h('button',{type:'button',className:'btn ghost',onClick:onCancelEdit},'Cancelar'),
-        h('button',{type:'button',className:'btn primary',disabled:diff.length===0||!dRwy,onClick:publish},
-          !dRwy?'Elige pista'
-            :(diff.length?('Publicar '+diff.length+' cambio'+(diff.length>1?'s':'')):'Sin cambios'))));
-  }
-
-  // ---------- modo visor ----------
+  useEffect(()=>{ setShowAllEps(false); },[a.icao]);
+  const rwyTxt=(a.rwyu&&a.rwyu.length)?a.rwyu.join(' / '):'—';
   return h('div',{className:'apcard'+(chg.length?' changed':'')+(dragging?' dragging':''),'data-icao':a.icao},
     h('div',{className:'crest'},
       onDragHandle && h('span',{className:'draghandle',title:'Arrastra para reordenar',
@@ -283,14 +156,13 @@ function AirportCard({a,user,onEdit,edit,onCancelEdit,onPublish,metars,onRemove,
         h('div',{className:'city'},a.city.toUpperCase())),
       h('div',{className:'crest-r'},
         h('div',{className:'k'},'Pista en uso'),
-        h('div',{className:'rwyhero'+(chg.includes('rwyu')?' changed':'')}, rwyTxt),
-        h('div',{className:'rwymode'+(a.rwymode?'':' none')+(chg.includes('rwymode')?' changed':'')}, modeTxt))),
+        h('div',{className:'rwyhero'+(chg.includes('rwyu')?' changed':'')}, rwyTxt))),
     eps.length>0
       ? h('div',{className:'apstack eplist'},
           h(EpFlowRow,{head:true}),
           epShown.map(ep=>{
             const star=starDisplayVal(a.stars,a.epuse,ep);
-            const apps=appForEp(ep,star);
+            const apps=appDisplayForStar(a.apps,a.appu,star,a.rwyu);
             return h(EpFlowRow,{key:ep,ep,star,apps,charts:a.charts});
           }),
           (eps.length>epPrimary.length)&&h('button',{type:'button',className:'epmore',
@@ -312,8 +184,87 @@ function AirportCard({a,user,onEdit,edit,onCancelEdit,onPublish,metars,onRemove,
         onClick:()=>onRemove(a.icao)},'Quitar'),
       h('span',{className:'editlink'+(canEdit?'':' locked'),
         title:canEdit?'':'Tu rol no permite editar este aeródromo',
-        onClick:()=>canEdit&&onEdit(a.icao)}, canEdit?'Editar':'Solo lectura'))
+        onClick:()=>canEdit&&onEdit(a)}, canEdit?'Editar':'Solo lectura'))
   );
 }
 
-// (edición operacional ahora es inline en la tarjeta — ver AirportCard modo edición)
+/* ---------------- Editor Drawer ---------------- */
+function Editor({ap,user,onClose,onSave}){
+  const [rwyu,setRwyu]=useState(ap.rwyu||[]);
+  const [appu,setAppu]=useState(ap.appu||[]);
+  const [epuse,setEpuse]=useState(ap.epuse||{});
+  // puntos de entrada que se muestran en la tarjeta (hasta 4), elegidos de la lista completa
+  const [epsel,setEpsel]=useState((ap.epsel||[]).slice(0,4));
+  const setSlot=(i,val)=>setEpsel(prev=>{ const n=[...prev]; while(n.length<4) n.push(''); n[i]=val; return n; });
+  const diff=[];
+  const cmpUse=(field,oldArr,newArr)=>{
+    const a=(oldArr||[]).join(' / '), b=(newArr||[]).join(' / ');
+    if(a!==b) diff.push({field,from:a||'—',to:b||'—'});
+  };
+  cmpUse('rwyu',ap.rwyu,rwyu); cmpUse('appu',ap.appu,appu);
+  if(epUseStr(ap.eps,ap.epuse)!==epUseStr(ap.eps,epuse))
+    diff.push({field:'epuse',from:epUseStr(ap.eps,ap.epuse),to:epUseStr(ap.eps,epuse)});
+  const selStr=arr=>(arr||[]).filter(Boolean).join(' / ');
+  if(selStr(ap.epsel)!==selStr(epsel))
+    diff.push({field:'epsel',from:selStr(ap.epsel)||'—',to:selStr(epsel)||'—'});
+
+  // selección múltiple: alterna la pertenencia de cada opción en el arreglo "en uso"
+  const segMulti=(label,opts,sel,set)=>h('div',{className:'field'},
+    h('label',null,label,' ',h('span',{className:'hint'},'una o más')),
+    h('div',{className:'seg'}, opts.map(o=>h('button',{key:o,className:sel.includes(o)?'on':'',
+      onClick:()=>set(sel.includes(o)?sel.filter(x=>x!==o):[...sel,o])},o))));
+
+  return h('div',{className:'scrim',onClick:e=>{if(e.target.className==='scrim')onClose();}},
+    h('div',{className:'drawer'},
+      h('div',{className:'dhead'},
+        h('div',{className:'icao'},ap.icao),
+        h('div',null,
+          h('div',{style:{fontFamily:'var(--mono)',fontSize:11,color:'var(--ink-dim)',letterSpacing:'.04em'}},ap.name),
+          h('div',{style:{fontFamily:'var(--mono)',fontSize:9.5,color:'var(--ink-faint)',marginTop:3,letterSpacing:'.1em'}},'CONFIGURACIÓN OPERACIONAL')),
+        h('button',{className:'x',onClick:onClose},'✕')),
+      h('div',{className:'dbody'},
+        diff.length>0 && h('div',{className:'diffbox'},
+          h('div',{className:'dl'},'⚠ Cambios pendientes de publicación'),
+          diff.map(d=>h('div',{className:'diffrow',key:d.field},
+            h('b',null,fieldLabel(d.field)),
+            h('span',{className:'from'},d.from), h('span',null,'→'), h('span',{className:'to'},d.to)))),
+        segMulti('Pistas en uso', ap.rwys, rwyu, setRwyu),
+        segMulti('Aproximaciones en uso', ap.apps, appu, setAppu),
+        (ap.eps&&ap.eps.length>0) && h('div',{className:'field'},
+          h('label',null,'Puntos de entrada en tarjeta ',h('span',{className:'hint'},'hasta 4')),
+          h('div',{className:'epselgrid'},
+            [0,1,2,3].map(i=>{
+              const cur=epsel[i]||'';
+              const taken=epsel.filter((v,j)=>j!==i&&v);
+              const opts=(ap.eps||[]).filter(e=>!taken.includes(e));
+              return h('select',{key:i,className:'epselbox'+(cur?'':' empty'),value:cur,
+                onChange:e=>setSlot(i,e.target.value)},
+                h('option',{value:''},'— libre —'),
+                opts.map(e=>h('option',{key:e,value:e},e)));
+            }))),
+        (ap.eps&&ap.eps.length>0) && h('div',{className:'field'},
+          h('label',null,'STAR en uso por punto de entrada ',h('span',{className:'hint'},'una por punto')),
+          h('div',{className:'epuse'},
+            ap.eps.map((ep,i)=>{
+              const opts=starsForEp(ap.stars,ep);
+              return h('div',{className:'epuserow',key:i},
+                h('div',{className:'epusep'}, ep),
+                opts.length===0
+                  ? h('span',{className:'epusenone'},'sin STAR en Data Base')
+                  : h('div',{className:'seg'}, opts.map(o=>h('button',{key:o,
+                      className:(epuse[ep]===o)?'on':'',
+                      onClick:()=>setEpuse({...epuse,[ep]:o})},o))));
+            }))),
+        h('div',{className:'field'},
+          h('label',null,'Observación operacional ',h('span',{className:'hint'},'opcional')),
+          h('textarea',{placeholder:'Ej. cambio por viento 210/14, pista preferencial nocturna…'}))
+      ),
+      h('div',{className:'dfoot'},
+        h('button',{className:'btn ghost',style:{flex:1},onClick:onClose},'Cancelar'),
+        h('button',{className:'btn primary',style:{flex:2},disabled:diff.length===0||rwyu.length===0,
+          onClick:()=>onSave(ap.icao,{rwyu,appu,epuse,epsel:epsel.filter(Boolean)},diff)},
+          rwyu.length===0?'Selecciona pista en uso'
+            :(diff.length?('Publicar '+diff.length+' cambio'+(diff.length>1?'s':'')):'Sin cambios')))
+    )
+  );
+}

@@ -109,8 +109,6 @@ function App(){
           if(old && signal){
             ['rwyu','appu'].forEach(f=>{ if((old[f]||[]).join('|')!==(na[f]||[]).join('|')) changed.push(f); });
             if(JSON.stringify(old.epuse||{})!==JSON.stringify(na.epuse||{})) changed.push('epuse');
-            if(JSON.stringify(old.appuse||{})!==JSON.stringify(na.appuse||{})) changed.push('appuse');
-            if((old.rwymode||'')!==(na.rwymode||'')) changed.push('rwymode');
           }
           // el parpadeo persiste hasta que se acuse (no se auto-borra)
           return {...na, changed: signal ? (changed.length?changed:(old?old.changed:[])) : [] };
@@ -428,8 +426,7 @@ function App(){
       h('div',{className:'content'},
         alerts.length>0 && h(AlertBanner,{alerts,onAck:ackAlert,onAckAll:ackAll}),
         view==='viewer' && h(Viewer,{airports:visible,allAirports:airports,allCount:airports.length,mine:mine.length,changedNow,
-          query,setQuery,filter,setFilter,user,onEdit:setEditing,editingIcao:editing,
-          onCancelEdit:()=>setEditing(null),onPublish:commitChange,metars,
+          query,setQuery,filter,setFilter,user,onEdit:setEditing,metars,
           watch,onAddWatch:addWatch,onRemoveWatch:removeWatch,onReorder:reorderWatch}),
         view==='log' && h(LogView,{logs,user}),
         view==='brief' && h(Briefing,{airports,logs,user,metars}),
@@ -441,6 +438,7 @@ function App(){
     ),
     h(Footer,{user,clock,changedNow,syncMode}),
     h(MobileTabs,{view,setView,changedNow,user}),
+    editing && h(Editor,{ap:editing,user,onClose:()=>setEditing(null),onSave:commitChange}),
     editingUser && h(UserEditor,{
       rec:editingUser.__new?null:editingUser, currentUser:user, airports, users,
       onClose:()=>setEditingUser(null),
