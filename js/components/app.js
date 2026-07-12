@@ -109,6 +109,7 @@ function App(){
           if(old && signal){
             ['rwyu','appu'].forEach(f=>{ if((old[f]||[]).join('|')!==(na[f]||[]).join('|')) changed.push(f); });
             if(JSON.stringify(old.epuse||{})!==JSON.stringify(na.epuse||{})) changed.push('epuse');
+            if((old.rwymode||'')!==(na.rwymode||'')) changed.push('rwymode');
           }
           // el parpadeo persiste hasta que se acuse (no se auto-borra)
           return {...na, changed: signal ? (changed.length?changed:(old?old.changed:[])) : [] };

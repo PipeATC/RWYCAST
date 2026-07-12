@@ -145,7 +145,7 @@ function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
     : eps.slice(0,4);
   const epShown=showAllEps?eps:epPrimary;
   useEffect(()=>{ setShowAllEps(false); },[a.icao]);
-  const rwyTxt=(a.rwyu&&a.rwyu.length)?a.rwyu.join(' / '):'—';
+  const rwyTxt=(a.rwyu&&a.rwyu.length)?a.rwyu.join(' / ').toUpperCase():'—';
   return h('div',{className:'apcard'+(chg.length?' changed':'')+(dragging?' dragging':''),'data-icao':a.icao},
     h('div',{className:'crest'},
       onDragHandle && h('span',{className:'draghandle',title:'Arrastra para reordenar',
@@ -156,7 +156,8 @@ function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
         h('div',{className:'city'},a.city.toUpperCase())),
       h('div',{className:'crest-r'},
         h('div',{className:'k'},'Pista en uso'),
-        h('div',{className:'rwyhero'+(chg.includes('rwyu')?' changed':'')}, rwyTxt))),
+        h('div',{className:'rwyhero'+(chg.includes('rwyu')?' changed':'')}, rwyTxt),
+        h('div',{className:'rwymode'+(a.rwymode?'':' none')+(chg.includes('rwymode')?' changed':'')}, a.rwymode||'—'))),
     eps.length>0
       ? h('div',{className:'apstack eplist'},
           h(EpFlowRow,{head:true}),
@@ -193,6 +194,7 @@ function Editor({ap,user,onClose,onSave}){
   const [rwyu,setRwyu]=useState(ap.rwyu||[]);
   const [appu,setAppu]=useState(ap.appu||[]);
   const [epuse,setEpuse]=useState(ap.epuse||{});
+  const [rwymode,setRwymode]=useState(ap.rwymode||'');
   // puntos de entrada que se muestran en la tarjeta (hasta 4), elegidos de la lista completa
   const [epsel,setEpsel]=useState((ap.epsel||[]).slice(0,4));
   const setSlot=(i,val)=>setEpsel(prev=>{ const n=[...prev]; while(n.length<4) n.push(''); n[i]=val; return n; });
@@ -207,6 +209,8 @@ function Editor({ap,user,onClose,onSave}){
   const selStr=arr=>(arr||[]).filter(Boolean).join(' / ');
   if(selStr(ap.epsel)!==selStr(epsel))
     diff.push({field:'epsel',from:selStr(ap.epsel)||'—',to:selStr(epsel)||'—'});
+  if((ap.rwymode||'')!==rwymode)
+    diff.push({field:'rwymode',from:(ap.rwymode||'Ninguna'),to:(rwymode||'Ninguna')});
 
   // selección múltiple: alterna la pertenencia de cada opción en el arreglo "en uso"
   const segMulti=(label,opts,sel,set)=>h('div',{className:'field'},
@@ -229,6 +233,11 @@ function Editor({ap,user,onClose,onSave}){
             h('b',null,fieldLabel(d.field)),
             h('span',{className:'from'},d.from), h('span',null,'→'), h('span',{className:'to'},d.to)))),
         segMulti('Pistas en uso', ap.rwys, rwyu, setRwyu),
+        h('div',{className:'field'},
+          h('label',null,'Modalidad de uso ',h('span',{className:'hint'},'una')),
+          h('div',{className:'seg'},
+            [['','Ninguna'],['Mixta','Mixta'],['Semi-Mixta','Semi-Mixta'],['Segregada','Segregada']].map(o=>
+              h('button',{key:o[1],className:(rwymode===o[0])?'on':'',onClick:()=>setRwymode(o[0])},o[1])))),
         segMulti('Aproximaciones en uso', ap.apps, appu, setAppu),
         (ap.eps&&ap.eps.length>0) && h('div',{className:'field'},
           h('label',null,'Puntos de entrada en tarjeta ',h('span',{className:'hint'},'hasta 4')),
@@ -262,7 +271,7 @@ function Editor({ap,user,onClose,onSave}){
       h('div',{className:'dfoot'},
         h('button',{className:'btn ghost',style:{flex:1},onClick:onClose},'Cancelar'),
         h('button',{className:'btn primary',style:{flex:2},disabled:diff.length===0||rwyu.length===0,
-          onClick:()=>onSave(ap.icao,{rwyu,appu,epuse,epsel:epsel.filter(Boolean)},diff)},
+          onClick:()=>onSave(ap.icao,{rwyu,appu,epuse,epsel:epsel.filter(Boolean),rwymode},diff)},
           rwyu.length===0?'Selecciona pista en uso'
             :(diff.length?('Publicar '+diff.length+' cambio'+(diff.length>1?'s':'')):'Sin cambios')))
     )

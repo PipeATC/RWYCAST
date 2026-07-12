@@ -1,7 +1,7 @@
 // Data Base — fieldLabel / cleanList / cleanStars / reconcileEpUse, …
 function fieldLabel(f){
   return f==='rwyu'?'PISTAS EN USO':f==='appu'?'APROX. EN USO':f==='epuse'?'STAR EN USO':
-         f==='epsel'?'PTOS. ENTRADA (TARJETA)':
+         f==='rwymode'?'MODALIDAD':f==='epsel'?'PTOS. ENTRADA (TARJETA)':
          f==='rwys'?'PISTAS':f==='apps'?'APROX.':f==='eps'?'PTOS. ENTRADA':f==='stars'?'STARS':
          f==='charts'?'CARTAS (PDF)':
          f==='name'?'NOMBRE':f==='city'?'CIUDAD':
