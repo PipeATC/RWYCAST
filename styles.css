@@ -182,7 +182,7 @@
   .opf .val.empty{color:var(--ink-faint);font-weight:500;font-size:14px}
   /* filas: punto de entrada (izq) | STAR (centro) | aproximación (der)
      una sola grilla → columnas auto-ajustadas al contenido y alineadas entre filas */
-  .eplist{display:grid;grid-template-columns:auto auto minmax(0,1fr)}
+  .eplist{display:grid;grid-template-columns:minmax(0,.75fr) minmax(0,.9fr) minmax(0,1.55fr)}
   .epflow{display:contents}
   .epcol{padding:10px 12px;border-top:1px solid var(--line-soft);border-right:1px solid var(--line-soft);
     min-width:0;display:flex;flex-direction:column;justify-content:center}
