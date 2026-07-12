@@ -135,7 +135,6 @@ function EpFlowRow({ep,star,apps,charts,head}){
 }
 
 function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
-  const owns=userUnits(user).includes(a.owner);
   const canEdit=canEditAirport(user,a);
   const m=metars[a.icao];
   const chg=a.changed||[];
@@ -156,10 +155,6 @@ function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
         h('div',{className:'nm'},a.name),
         h('div',{className:'city'},a.city.toUpperCase())),
       h('div',{className:'crest-r'},
-        h('div',{className:'owntag'},
-          h('b',null,a.owner),
-          owns?h('span',{style:{color:'var(--phos)'}},'MI UNIDAD')
-              :(user.role==='admin'?h('span',null,'ADMIN'):h('span',null,''))),
         h('div',{className:'k'},'Pista en uso'),
         h('div',{className:'rwyhero'+(chg.includes('rwyu')?' changed':'')}, rwyTxt))),
     eps.length>0
