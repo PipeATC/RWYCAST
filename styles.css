@@ -143,6 +143,7 @@
   .apgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
 
   .apcard{border:1px solid var(--line);background:linear-gradient(180deg,var(--panel-2),var(--panel));position:relative;overflow:hidden;transition:box-shadow .15s,opacity .15s,border-color .15s}
+  .apcard:has(.cardpick-btn.open){overflow:visible;z-index:50}
   /* reordenamiento (drag & drop) de Mi jurisdicción */
   .reorderhint{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--ink-faint);margin-bottom:12px}
   .apcard.dragging{opacity:.5;border-color:var(--phos);box-shadow:0 0 0 1px var(--phos),0 12px 30px rgba(0,0,0,.5)}
@@ -161,6 +162,7 @@
   .opfields{display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid var(--line-soft)}
   .opfields.two{grid-template-columns:1fr 1fr}
   .opf{padding:12px 13px;border-right:1px solid var(--line-soft);position:relative}
+  .opf:has(.cardpick-btn.open){overflow:visible;z-index:1}
   .opf:last-child{border-right:none}
   .opf .k{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--ink-faint);text-transform:uppercase}
   .opf .val{font-family:var(--mono);font-size:19px;font-weight:800;color:var(--ink);margin-top:7px;line-height:1;letter-spacing:.02em}
@@ -175,9 +177,9 @@
   .cardpick-lbl{flex:1;min-width:0;word-break:break-word}
   .cardpick-caret{flex:0 0 auto;font-size:10px;color:var(--ink-faint);margin-top:2px}
   .cardpick-btn.open .cardpick-caret{color:var(--phos)}
-  .cardpick-menu{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:40;
-    max-height:220px;overflow:auto;background:var(--panel-3);border:1px solid var(--phos);
-    box-shadow:0 8px 24px rgba(0,0,0,.45)}
+  .cardpick-menu{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:60;
+    max-height:min(220px,50vh);overflow:auto;background:var(--panel-3);border:1px solid var(--phos);
+    box-shadow:0 8px 24px rgba(0,0,0,.55)}
   .cardpick-opt{display:block;width:100%;padding:10px 12px;background:transparent;border:none;border-top:1px solid var(--line-soft);
     font-family:var(--mono);font-size:13px;font-weight:700;color:var(--ink);text-align:left;cursor:pointer;line-height:1.3}
   .cardpick-opt:first-child{border-top:none}
