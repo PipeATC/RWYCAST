@@ -24,6 +24,7 @@ concurrency:
 
 jobs:
   fetch:
+    if: github.repository == 'PipeATC/RWYCAST'
     runs-on: ubuntu-latest
     steps:
       - name: Descargar METAR y publicar en Firebase RTDB
