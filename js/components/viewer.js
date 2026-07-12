@@ -152,7 +152,7 @@ function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
   useEffect(()=>{
     setSelEp(epList[0]||'');
   },[a.icao, epList.join('|')]);
-  const pubStar=starDisplayVal(a.epuse, selEp);
+  const pubStar=starDisplayVal(a.stars, a.epuse, selEp);
   const appShown=appDisplayForStar(a.apps, a.appu, pubStar, a.rwyu);
   const fldNode=(key,label,arr)=>h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
     h('div',{className:'k'},label),

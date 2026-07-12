@@ -92,8 +92,12 @@ function appDisplayForStar(apps, appu, starName, rwyu){
   const linked=appsForStar(apps, published, starName, rwyu);
   return linked.length ? linked : published;
 }
-function starDisplayVal(epuse, ep){
-  return (epuse&&ep&&epuse[ep])||'';
+function starDisplayVal(stars, epuse, ep){
+  if(!ep) return '';
+  const pub=(epuse||{})[ep];
+  if(pub) return pub;
+  const opts=starsForEp(stars, ep);
+  return opts.length===1 ? opts[0] : '';
 }
 // reconcilia la STAR en uso por punto de entrada contra el catálogo vigente
 function reconcileEpUse(eps, stars, prev){
