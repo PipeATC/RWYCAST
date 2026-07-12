@@ -118,6 +118,29 @@ function chartList(names,charts,onOpen){
   return out;
 }
 
+// desplegable compacto para tarjetas del visor (tema oscuro, legible en tablet)
+function CardPick({value,options,onChange,renderVal}){
+  const [open,setOpen]=useState(false);
+  const ref=useRef(null);
+  useEffect(()=>{
+    if(!open) return;
+    const close=e=>{ if(ref.current&&!ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('pointerdown',close);
+    return ()=>document.removeEventListener('pointerdown',close);
+  },[open]);
+  const empty=!value;
+  const shown=empty?'—':(renderVal?renderVal(value):value);
+  if(!options.length) return h('div',{className:'val compact empty'},'—');
+  if(options.length===1) return h('div',{className:'val compact'+(empty?' empty':'')},shown);
+  return h('div',{className:'cardpick-wrap',ref:ref},
+    h('button',{type:'button',className:'cardpick-btn'+(open?' open':'')+(empty?' empty':''),onClick:()=>setOpen(v=>!v)},
+      h('span',{className:'cardpick-lbl'},shown),
+      h('span',{className:'cardpick-caret'},open?'▴':'▾')),
+    open&&h('div',{className:'cardpick-menu'},
+      options.map(o=>h('button',{type:'button',key:o,className:'cardpick-opt'+(o===value?' on':''),
+        onClick:()=>{ onChange(o); setOpen(false); }}, o))));
+}
+
 function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
   const owns=userUnits(user).includes(a.owner);
   const canEdit=canEditAirport(user,a);
@@ -145,17 +168,9 @@ function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
   const fldNode=(key,label,arr)=>h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
     h('div',{className:'k'},label),
     h('div',{className:'val'+((arr&&arr.length)?'':' empty')}, (arr&&arr.length)?chartList(arr,a.charts,openChart):'—'));
-  const pickNode=(key,label,value,opts,onPick,renderVal)=>{
-    const empty=!value;
-    return h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
-      h('div',{className:'k'},label),
-      opts.length<=1
-        ? h('div',{className:'val compact'+(empty?' empty':'')},
-            empty?'—':(renderVal?renderVal(value):value))
-        : h('select',{className:'cardpick'+(empty?' empty':''),value:value||'',onChange:e=>onPick(e.target.value)},
-            !value&&h('option',{value:''},'—'),
-            opts.map(o=>h('option',{key:o,value:o},o))));
-  };
+  const pickNode=(key,label,value,opts,onPick,renderVal)=>h('div',{className:'opf'+(chg.includes(key)?' changed':'')},
+    h('div',{className:'k'},label),
+    h(CardPick,{value:value||'',options:opts,onChange:onPick,renderVal:renderVal}));
   return h('div',{className:'apcard'+(chg.length?' changed':'')+(dragging?' dragging':''),'data-icao':a.icao},
     h('div',{className:'crest'},
       onDragHandle && h('span',{className:'draghandle',title:'Arrastra para reordenar',

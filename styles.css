@@ -166,11 +166,22 @@
   .opf .val{font-family:var(--mono);font-size:19px;font-weight:800;color:var(--ink);margin-top:7px;line-height:1;letter-spacing:.02em}
   .opf .val.compact{font-size:14px;line-height:1.25}
   .opf .val.empty{color:var(--ink-faint);font-weight:500;font-size:14px}
-  select.cardpick{display:block;width:100%;margin-top:7px;padding:2px 0;font-family:var(--mono);
-    font-size:14px;font-weight:800;color:var(--ink);background:transparent;border:none;cursor:pointer;
-    appearance:none;-webkit-appearance:none;line-height:1.25}
-  select.cardpick.empty{color:var(--ink-faint);font-weight:500;font-size:13px}
-  select.cardpick:focus{outline:none;color:var(--phos)}
+  .cardpick-wrap{position:relative;margin-top:7px}
+  .cardpick-btn{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;width:100%;
+    padding:0;background:transparent;border:none;cursor:pointer;text-align:left;font-family:var(--mono);
+    font-size:14px;font-weight:800;color:var(--ink);line-height:1.25}
+  .cardpick-btn.empty{color:var(--ink-faint);font-weight:500;font-size:13px}
+  .cardpick-btn.open,.cardpick-btn:hover{color:var(--phos)}
+  .cardpick-lbl{flex:1;min-width:0;word-break:break-word}
+  .cardpick-caret{flex:0 0 auto;font-size:10px;color:var(--ink-faint);margin-top:2px}
+  .cardpick-btn.open .cardpick-caret{color:var(--phos)}
+  .cardpick-menu{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:40;
+    max-height:220px;overflow:auto;background:var(--panel-3);border:1px solid var(--phos);
+    box-shadow:0 8px 24px rgba(0,0,0,.45)}
+  .cardpick-opt{display:block;width:100%;padding:10px 12px;background:transparent;border:none;border-top:1px solid var(--line-soft);
+    font-family:var(--mono);font-size:13px;font-weight:700;color:var(--ink);text-align:left;cursor:pointer;line-height:1.3}
+  .cardpick-opt:first-child{border-top:none}
+  .cardpick-opt:hover,.cardpick-opt.on{background:rgba(63,240,168,.12);color:var(--phos)}
   /* puntos de entrada con su STAR (apilados hacia abajo) — legacy editor */
   .eplist{border-top:1px solid var(--line-soft)}
   .eprow{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line-soft)}
