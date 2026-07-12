@@ -118,18 +118,19 @@ function chartList(names,charts,onOpen){
   return out;
 }
 
-// fila fija EP + STAR + aproximación (visor sin interacción)
+// fila fija: EP + STAR (izq) | aproximación (der)
 function EpFlowRow({ep,star,apps,charts,head}){
-  const cls=head?'eprow3 head':'eprow3';
-  if(head) return h('div',{className:cls},
-    h('div',{className:'epc k'},'Punto'),
-    h('div',{className:'epc k'},'STAR'),
-    h('div',{className:'epc k'},'Aprox'));
-  return h('div',{className:cls},
-    h('div',{className:'epc v ep-name'},ep||'—'),
-    h('div',{className:'epc v'+(star?'':' empty')},
-      star?chartName(star,charts,'s',openChart):'—'),
-    h('div',{className:'epc v compact'+(apps.length?'':' empty')},
+  if(head) return h('div',{className:'epflow head'},
+    h('div',{className:'epflow-l'},
+      h('span',{className:'k'},'Punto de entrada'),
+      h('span',{className:'k sub'},'STAR en uso')),
+    h('div',{className:'epflow-r k'},'Aproximación'));
+  return h('div',{className:'epflow'},
+    h('div',{className:'epflow-l'},
+      h('div',{className:'ep-name'},ep||'—'),
+      h('div',{className:'ep-star'+(star?'':' empty')},
+        star?chartName(star,charts,'s',openChart):'—')),
+    h('div',{className:'ep-app'+(apps.length?'':' empty')},
       apps.length?chartList(apps,charts,openChart):'—'));
 }
 
