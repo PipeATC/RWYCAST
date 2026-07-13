@@ -308,6 +308,7 @@ function App(){
     const unitObj=UNITS.find(x=>x.code===primary);
     const profile={
       username, name:rec.name, role:rec.role, unit:primary, units,
+      posicion:rec.posicion||'', iniciales:rec.iniciales||'',  // datos para la Bitácora de posición
       region:unitObj?unitObj.region:'', mustChangePassword:!!rec.mustChangePassword
     };
     setUser(profile);
@@ -360,6 +361,8 @@ function App(){
       username:data.username, name:data.name||data.username, role:data.role,
       parent,                              // usuario de unidad al que pertenece (sector/general)
       unit: units[0]||'', units,           // unit = primaria (compat); units = heredadas/propias
+      posicion: data.role==='sector' ? (data.posicion||'').trim().toUpperCase() : '',  // código de posición (Bitácora)
+      iniciales: data.role==='general' ? (data.iniciales||'').trim().toUpperCase() : '', // iniciales del controlador (Bitácora)
       salt, passHash, mustChangePassword:true, active:true,
       createdAt:Date.now(), createdBy:userRef.current.name
     });
@@ -390,6 +393,8 @@ function App(){
       ...cur,
       name:patch.name!==undefined?patch.name:cur.name,
       role, parent, unit:units[0]||'', units,
+      posicion: role==='sector' ? (patch.posicion!==undefined?(patch.posicion||'').trim().toUpperCase():(cur.posicion||'')) : '',
+      iniciales: role==='general' ? (patch.iniciales!==undefined?(patch.iniciales||'').trim().toUpperCase():(cur.iniciales||'')) : '',
       active:patch.active!==undefined?patch.active:(cur.active!==false),
       ...extra
     });
@@ -431,6 +436,7 @@ function App(){
           watch,onAddWatch:addWatch,onRemoveWatch:removeWatch,onReorder:reorderWatch}),
         view==='log' && h(LogView,{logs,user}),
         view==='brief' && h(Briefing,{airports,logs,user,metars}),
+        view==='bitacora' && canUseBitacora(user) && h(Bitacora,{user,users}),
         view==='catalog' && canUseCatalog(user) && h(CatalogAdmin,{airports,user,onSave:commitCatalog,
           onCreate:createAirport,onDelete:removeAirport}),
         view==='users' && canManageUsers(user) && h(UsersAdmin,{users,currentUser:user,

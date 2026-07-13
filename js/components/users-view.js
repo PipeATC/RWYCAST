@@ -18,7 +18,9 @@ function UsersAdmin({users,currentUser,onNew,onEdit,onDelete}){
                   h('div',{className:'icao',style:{fontSize:16}}, u.username),
                   h('div',{className:'nm'}, u.name),
                   h('div',{className:'city'}, (ROLE_LABEL[u.role]||u.role)
-                    + (roleNeedsParent(u.role)&&u.parent?(' · ⤷ '+u.parent):''))),
+                    + (roleNeedsParent(u.role)&&u.parent?(' · ⤷ '+u.parent):'')
+                    + (u.role==='sector'&&u.posicion?(' · POS '+u.posicion):'')
+                    + (u.role==='general'&&u.iniciales?(' · INI '+u.iniciales):''))),
                 h('div',{className:'owntag'},
                   h('b',null, (roleNeedsUnit(u.role)||roleNeedsParent(u.role))?(userUnits(u).join(' · ')||'—'):'—'),
                   u.active===false
@@ -41,6 +43,8 @@ function UserEditor({rec,currentUser,airports,users,onClose,onCreate,onSave}){
   const [role,setRole]=useState(rec?rec.role:'unit');
   const [units,setUnits]=useState(rec?userUnits(rec):[]);
   const [parent,setParent]=useState(rec?rec.parent||'':'');
+  const [posicion,setPosicion]=useState(rec?rec.posicion||'':'');    // código de posición (sector) — Bitácora
+  const [iniciales,setIniciales]=useState(rec?rec.iniciales||'':''); // iniciales del controlador (general) — Bitácora
   const [active,setActive]=useState(rec?rec.active!==false:true);
   const [password,setPassword]=useState('');
   const [err,setErr]=useState(''); const [busy,setBusy]=useState(false);
@@ -65,8 +69,8 @@ function UserEditor({rec,currentUser,airports,users,onClose,onCreate,onSave}){
   const submit=async()=>{
     setBusy(true); setErr('');
     const r=isNew
-      ? await onCreate({username:username.trim(),name:name.trim(),role,units,parent,password})
-      : await onSave(rec.username,{name:name.trim(),role,units,parent,active,password:password||undefined});
+      ? await onCreate({username:username.trim(),name:name.trim(),role,units,parent,posicion,iniciales,password})
+      : await onSave(rec.username,{name:name.trim(),role,units,parent,posicion,iniciales,active,password:password||undefined});
     setBusy(false);
     if(r&&r.error) setErr(r.error);
   };
@@ -118,6 +122,14 @@ function UserEditor({rec,currentUser,airports,users,onClose,onCreate,onSave}){
             : h('select',{value:parent||'',onChange:e=>setParent(e.target.value)},
                 h('option',{value:''},'— Selecciona usuario de unidad —'),
                 parentOpts.map(o=>h('option',{key:o.code,value:o.code},o.label)))),
+        role==='sector' && h('div',{className:'field'},
+          h('label',null,'Posición ',h('span',{className:'hint'},'código de sector · Bitácora (ej. C)')),
+          h('input',{value:posicion,maxLength:6,autoCapitalize:'characters',placeholder:'Ej. C',
+            style:{fontSize:14,textTransform:'uppercase'},onChange:e=>setPosicion(e.target.value)})),
+        role==='general' && h('div',{className:'field'},
+          h('label',null,'Iniciales ',h('span',{className:'hint'},'controlador · Bitácora (ej. MFP)')),
+          h('input',{value:iniciales,maxLength:5,autoCapitalize:'characters',placeholder:'Ej. MFP',
+            style:{fontSize:14,textTransform:'uppercase'},onChange:e=>setIniciales(e.target.value)})),
         !isNew && h('div',{className:'field'},
           h('label',null,'Estado de la cuenta'),
           h('div',{className:'seg'},

@@ -20,6 +20,8 @@ const Ic = {
   cfg:(p)=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,...p},
     h('path',{d:'M4 6h9M19 6h1M4 12h1M11 12h9M4 18h5M15 18h5'}),
     h('circle',{cx:16,cy:6,r:2}),h('circle',{cx:8,cy:12,r:2}),h('circle',{cx:12,cy:18,r:2})),
+  book:(p)=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,...p},
+    h('path',{d:'M4 4h11a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2V4zM17 6h3v12a2 2 0 0 1-2 2M8 8h6M8 12h6'})),
 };
 
 const GLYPH = h('svg',{className:'glyph',viewBox:'0 0 48 48',fill:'none'},

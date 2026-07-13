@@ -7,14 +7,24 @@ const ROLE_LABEL={
   general:'Usuario General',
 };
 const ROLE_SHORT={admin:'ADMIN',unit:'UNIDAD',sector:'SECTOR',general:'GENERAL'};
-const TAB_LABEL={viewer:'Visor',log:'Registro',brief:'Briefing',catalog:'Data Base',users:'Usuarios'};
+const TAB_LABEL={viewer:'Visor',log:'Registro',brief:'Briefing',bitacora:'Bitácora',catalog:'Data Base',users:'Usuarios'};
 const RAIL_META={
   viewer:['Visor operacional',Ic.tower],
   log:['Registro de cambios',Ic.log],
   brief:['Briefing de turno',Ic.brief],
+  bitacora:['Bitácora de posición',Ic.book],
   catalog:['Data Base de unidades',Ic.cfg],
   users:['Gestión de usuarios',Ic.users],
 };
+
+// Abreviatura de dependencia para la cabecera de la bitácora (FORM ATC-6).
+// Mapea códigos conocidos; para el resto deriva quitando el sufijo de tipo de unidad.
+const DEP_ABBREV={'ACC-SANTIAGO':'ACCS'};
+function depAbbrev(code){
+  if(!code) return '—';
+  if(DEP_ABBREV[code]) return DEP_ABBREV[code];
+  return code.replace(/-(TWR|APP|ACC|CTR)$/,'');
+}
 
 // Roles que gestionan directamente unidades aeroportuarias del catálogo (solo unit).
 function roleNeedsUnit(role){ return role==='unit'; }
@@ -42,9 +52,9 @@ function effectiveUnits(rec, usersMap){
 // Pestañas permitidas por rol (control de rutas / navegación)
 function viewsFor(role){
   switch(role){
-    case 'admin':  return ['viewer','log','brief','catalog','users'];
-    case 'unit':   return ['viewer','log','brief','catalog'];
-    case 'sector': return ['viewer','log','brief'];
+    case 'admin':  return ['viewer','log','brief','bitacora','catalog','users'];
+    case 'unit':   return ['viewer','log','brief','bitacora','catalog'];
+    case 'sector': return ['viewer','log','brief','bitacora'];
     default:       return ['brief']; // general
   }
 }
@@ -56,6 +66,20 @@ function canEditAirport(user,ap){
   return false;                                    // sector / general → lectura
 }
 function canManageUsers(user){ return !!user && user.role==='admin'; }
+// --- Bitácora de posición (FORM ATC-6) ---
+// ¿Puede acceder al módulo? admin, usuario de unidad y usuario de sector.
+function canUseBitacora(user){ return !!user && (user.role==='admin'||user.role==='unit'||user.role==='sector'); }
+// ¿Puede ESCRIBIR en la bitácora de una posición (dependencia + sector)?
+//   admin → cualquiera · unit → posiciones de su dependencia · sector → solo su propia posición.
+function canEditBitacora(user,depCode,sectorUsername){
+  if(!user) return false;
+  if(user.role==='admin') return true;
+  if(user.role==='unit')  return userUnits(user).includes(depCode);
+  if(user.role==='sector') return user.username===sectorUsername && userUnits(user).includes(depCode);
+  return false;
+}
+// ¿Puede generar el reporte imprimible de fin de día? admin y usuario de unidad.
+function canReportBitacora(user){ return !!user && (user.role==='admin'||user.role==='unit'); }
 // ¿Puede el usuario acceder al módulo Data Base? (admin = toda la red, unit = su unidad)
 function canUseCatalog(user){ return !!user && (user.role==='admin'||user.role==='unit'); }
 // ¿Puede agregar/eliminar unidades aeroportuarias? (solo Administrador General)

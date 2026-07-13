@@ -15,4 +15,6 @@ const DBPATH='runcast/state/v1';          // ruta del estado compartido en Fireb
 const BKEY='runcast:briefing:v1';
 const BPATH='runcast/briefing/current';
 const UPATH='runcast/users';
+const BITKEY='runcast:bitacora:v1';    // clave local de la Bitácora de Posición (FORM ATC-6)
+const BITPATH='runcast/bitacora';      // ruta compartida de la Bitácora en Firebase
 const SESSION_KEY='runcast:session';   // sesión recordada ("mantener sesión iniciada")
