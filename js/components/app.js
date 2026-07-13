@@ -437,6 +437,7 @@ function App(){
         view==='log' && h(LogView,{logs,user}),
         view==='brief' && h(Briefing,{airports,logs,user,metars}),
         view==='bitacora' && canUseBitacora(user) && h(Bitacora,{user,users}),
+        view==='rotacion' && canUseRotacion(user) && h(Rotacion,{user,users}),
         view==='catalog' && canUseCatalog(user) && h(CatalogAdmin,{airports,user,onSave:commitCatalog,
           onCreate:createAirport,onDelete:removeAirport}),
         view==='users' && canManageUsers(user) && h(UsersAdmin,{users,currentUser:user,

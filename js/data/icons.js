@@ -22,6 +22,8 @@ const Ic = {
     h('circle',{cx:16,cy:6,r:2}),h('circle',{cx:8,cy:12,r:2}),h('circle',{cx:12,cy:18,r:2})),
   book:(p)=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,...p},
     h('path',{d:'M4 4h11a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2V4zM17 6h3v12a2 2 0 0 1-2 2M8 8h6M8 12h6'})),
+  rot:(p)=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,...p},
+    h('path',{d:'M20 11a8 8 0 1 0-.9 4M20 5v4h-4'})),
 };
 
 const GLYPH = h('svg',{className:'glyph',viewBox:'0 0 48 48',fill:'none'},

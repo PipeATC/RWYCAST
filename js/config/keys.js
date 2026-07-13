@@ -17,4 +17,6 @@ const BPATH='runcast/briefing/current';
 const UPATH='runcast/users';
 const BITKEY='runcast:bitacora:v1';    // clave local de la Bitácora de Posición (FORM ATC-6)
 const BITPATH='runcast/bitacora';      // ruta compartida de la Bitácora en Firebase
+const ROTKEY='runcast:rotacion:v1';    // clave local del cuadro de Rotación de estaciones
+const ROTPATH='runcast/rotacion';      // ruta compartida de la Rotación en Firebase
 const SESSION_KEY='runcast:session';   // sesión recordada ("mantener sesión iniciada")

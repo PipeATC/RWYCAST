@@ -7,12 +7,13 @@ const ROLE_LABEL={
   general:'Usuario General',
 };
 const ROLE_SHORT={admin:'ADMIN',unit:'UNIDAD',sector:'SECTOR',general:'GENERAL'};
-const TAB_LABEL={viewer:'Visor',log:'Registro',brief:'Briefing',bitacora:'Bitácora',catalog:'Data Base',users:'Usuarios'};
+const TAB_LABEL={viewer:'Visor',log:'Registro',brief:'Briefing',bitacora:'Bitácora',rotacion:'Rotación',catalog:'Data Base',users:'Usuarios'};
 const RAIL_META={
   viewer:['Visor operacional',Ic.tower],
   log:['Registro de cambios',Ic.log],
   brief:['Briefing de turno',Ic.brief],
   bitacora:['Bitácora de posición',Ic.book],
+  rotacion:['Rotación de estaciones',Ic.rot],
   catalog:['Data Base de unidades',Ic.cfg],
   users:['Gestión de usuarios',Ic.users],
 };
@@ -52,10 +53,10 @@ function effectiveUnits(rec, usersMap){
 // Pestañas permitidas por rol (control de rutas / navegación)
 function viewsFor(role){
   switch(role){
-    case 'admin':  return ['viewer','log','brief','bitacora','catalog','users'];
-    case 'unit':   return ['viewer','log','brief','bitacora','catalog'];
-    case 'sector': return ['viewer','log','brief','bitacora'];
-    default:       return ['brief']; // general
+    case 'admin':  return ['viewer','log','brief','bitacora','rotacion','catalog','users'];
+    case 'unit':   return ['viewer','log','brief','bitacora','rotacion','catalog'];
+    case 'sector': return ['viewer','log','brief','bitacora','rotacion'];
+    default:       return ['brief','rotacion']; // general — ve el Briefing y su rotación
   }
 }
 // ¿Puede el usuario editar este aeródromo? (capa de permisos sobre los datos)
@@ -80,6 +81,16 @@ function canEditBitacora(user,depCode,sectorUsername){
 }
 // ¿Puede generar el reporte imprimible de fin de día? admin y usuario de unidad.
 function canReportBitacora(user){ return !!user && (user.role==='admin'||user.role==='unit'); }
+// --- Rotación de estaciones de trabajo ---
+// ¿Puede ver el módulo? Todos los roles con sesión (cada ATC ve su rotación).
+function canUseRotacion(user){ return !!user; }
+// ¿Puede armar/editar la rotación? admin (cualquier dependencia) y unit (la suya).
+function canEditRotacion(user,depCode){
+  if(!user) return false;
+  if(user.role==='admin') return true;
+  if(user.role==='unit')  return userUnits(user).includes(depCode);
+  return false;
+}
 // ¿Puede el usuario acceder al módulo Data Base? (admin = toda la red, unit = su unidad)
 function canUseCatalog(user){ return !!user && (user.role==='admin'||user.role==='unit'); }
 // ¿Puede agregar/eliminar unidades aeroportuarias? (solo Administrador General)
