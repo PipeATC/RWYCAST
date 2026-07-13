@@ -7,11 +7,12 @@ const ROLE_LABEL={
   general:'Usuario General',
 };
 const ROLE_SHORT={admin:'ADMIN',unit:'UNIDAD',sector:'SECTOR',general:'GENERAL'};
-const TAB_LABEL={viewer:'Visor',log:'Registro',brief:'Briefing',bitacora:'Bitácora',rotacion:'Rotación',catalog:'Data Base',users:'Usuarios'};
+const TAB_LABEL={viewer:'Visor',log:'Registro',brief:'Briefing',dashboard:'Dashboard',bitacora:'Bitácora',rotacion:'Rotación',catalog:'Data Base',users:'Usuarios'};
 const RAIL_META={
   viewer:['Visor operacional',Ic.tower],
   log:['Registro de cambios',Ic.log],
   brief:['Briefing de turno',Ic.brief],
+  dashboard:['Dashboard de decisiones',Ic.dash],
   bitacora:['Bitácora de posición',Ic.book],
   rotacion:['Rotación de estaciones',Ic.rot],
   catalog:['Data Base de unidades',Ic.cfg],
@@ -53,8 +54,8 @@ function effectiveUnits(rec, usersMap){
 // Pestañas permitidas por rol (control de rutas / navegación)
 function viewsFor(role){
   switch(role){
-    case 'admin':  return ['viewer','log','brief','bitacora','rotacion','catalog','users'];
-    case 'unit':   return ['viewer','log','brief','bitacora','rotacion','catalog'];
+    case 'admin':  return ['viewer','log','brief','dashboard','bitacora','rotacion','catalog','users'];
+    case 'unit':   return ['viewer','log','brief','dashboard','bitacora','rotacion','catalog'];
     case 'sector': return ['viewer','log','brief','bitacora','rotacion'];
     default:       return ['brief','rotacion']; // general — ve el Briefing y su rotación
   }
@@ -91,6 +92,9 @@ function canEditRotacion(user,depCode){
   if(user.role==='unit')  return userUnits(user).includes(depCode);
   return false;
 }
+// --- Dashboard de toma de decisiones (carga de trabajo / dotación) ---
+// Herramienta de decisión del supervisor: admin y usuario de unidad.
+function canUseDashboard(user){ return !!user && (user.role==='admin'||user.role==='unit'); }
 // ¿Puede el usuario acceder al módulo Data Base? (admin = toda la red, unit = su unidad)
 function canUseCatalog(user){ return !!user && (user.role==='admin'||user.role==='unit'); }
 // ¿Puede agregar/eliminar unidades aeroportuarias? (solo Administrador General)

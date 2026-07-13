@@ -436,6 +436,7 @@ function App(){
           watch,onAddWatch:addWatch,onRemoveWatch:removeWatch,onReorder:reorderWatch}),
         view==='log' && h(LogView,{logs,user}),
         view==='brief' && h(Briefing,{airports,logs,user,metars}),
+        view==='dashboard' && canUseDashboard(user) && h(Dashboard,{user,users}),
         view==='bitacora' && canUseBitacora(user) && h(Bitacora,{user,users}),
         view==='rotacion' && canUseRotacion(user) && h(Rotacion,{user,users}),
         view==='catalog' && canUseCatalog(user) && h(CatalogAdmin,{airports,user,onSave:commitCatalog,
