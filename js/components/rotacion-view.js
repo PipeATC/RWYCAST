@@ -174,11 +174,13 @@ function Rotacion({user,users}){
     return h('tr',{key:b.id,className:now?'rot-now':''},
       h('td',{className:'rot-t'}, editable
         ? h('input',{className:'rot-tin',value:b.start||'',maxLength:5,inputMode:'numeric',placeholder:'HH:MM',
-            onChange:e=>setBand(b.id,'start',rotCleanHM(e.target.value)),onBlur:flush})
+            onChange:e=>setBand(b.id,'start',rotTypeHM(e.target.value)),
+            onBlur:e=>{ setBand(b.id,'start',rotNormHM(e.target.value)); flush(); }})
         : h('span',null,b.start||'—')),
       h('td',{className:'rot-t'}, editable
         ? h('input',{className:'rot-tin',value:b.end||'',maxLength:5,inputMode:'numeric',placeholder:'HH:MM',
-            onChange:e=>setBand(b.id,'end',rotCleanHM(e.target.value)),onBlur:flush})
+            onChange:e=>setBand(b.id,'end',rotTypeHM(e.target.value)),
+            onBlur:e=>{ setBand(b.id,'end',rotNormHM(e.target.value)); flush(); }})
         : h('span',null,b.end||'—')),
       cells,
       h('td',{className:'rot-h'}, rotFmtDur(rotBandMin(b))),

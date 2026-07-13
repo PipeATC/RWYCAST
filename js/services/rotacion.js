@@ -26,10 +26,16 @@ function rotToday(){ const d=new Date(),p=n=>String(n).padStart(2,'0');
   return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
 function rotNowMin(){ const d=new Date(); return d.getHours()*60+d.getMinutes(); }
 function rotHM(s){ const m=/(\d{1,2}):(\d{2})/.exec(s||''); return m?(+m[1]*60+ +m[2]):null; }
-function rotCleanHM(v){ // normaliza a 'HH:MM' desde dígitos tecleados
-  const d=(v||'').replace(/\D/g,'').slice(0,4);
-  if(d.length<=2) return d;
-  return d.slice(0,d.length-2).padStart(2,'0')+':'+d.slice(-2);
+// Filtra lo tecleado en una casilla de hora: deja solo dígitos y ':' (máx 5), SIN
+// reformatear, para no mover el cursor ni impedir sobrescribir. Se normaliza en blur.
+function rotTypeHM(v){ return (v||'').replace(/[^0-9:]/g,'').slice(0,5); }
+// Normaliza a 'HH:MM' al salir del campo. '930'→09:30 · '2025'→20:25 · '8'→08:00.
+function rotNormHM(v){
+  const raw=(v||'').replace(/\D/g,''); if(!raw) return '';
+  const d=raw.slice(0,4); let h,m;
+  if(d.length<=2){ h=+d; m=0; } else { m=+d.slice(-2); h=+d.slice(0,d.length-2); }
+  if(h>23) h=23; if(m>59) m=59;
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
 }
 function rotBandMin(b){ let a=rotHM(b&&b.start), c=rotHM(b&&b.end);
   if(a==null||c==null) return 0; let d=c-a; if(d<0) d+=1440; return d; }
