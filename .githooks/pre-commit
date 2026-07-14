@@ -1,0 +1,17 @@
+#!/bin/sh
+# Sube patch automáticamente si el commit incluye cambios de código (no solo versión).
+STAGED=$(git diff --cached --name-only)
+[ -z "$STAGED" ] && exit 0
+
+ONLY_VERSION=1
+for f in $STAGED; do
+  case "$f" in
+    version.json|js/config/version.js) ;;
+    *) ONLY_VERSION=0; break ;;
+  esac
+done
+
+[ "$ONLY_VERSION" -eq 1 ] && exit 0
+
+node scripts/bump-version.mjs patch
+git add version.json js/config/version.js

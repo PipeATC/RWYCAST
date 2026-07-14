@@ -20,4 +20,3 @@ const BITPATH='runcast/bitacora';      // ruta compartida de la Bitácora en Fir
 const ROTKEY='runcast:rotacion:v1';    // clave local del cuadro de Rotación de estaciones
 const ROTPATH='runcast/rotacion';      // ruta compartida de la Rotación en Firebase
 const SESSION_KEY='runcast:session';   // sesión recordada ("mantener sesión iniciada")
-const APP_VERSION='v0.0.1';            // versión visible en el footer (subir al publicar)

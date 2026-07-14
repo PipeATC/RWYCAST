@@ -12,6 +12,7 @@
 const CACHE = 'rwycast-v5';
 const JS_MODULES = [
   './js/core/react-setup.js',
+  './js/config/version.js',
   './js/config/keys.js',
   './js/data/seed.js',
   './js/data/icons.js',

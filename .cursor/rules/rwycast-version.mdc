@@ -1,0 +1,35 @@
+---
+description: Versión de producto RWYCAST — bump antes de commit con cambios visibles
+globs:
+  - "**/*"
+alwaysApply: false
+---
+
+# Versión RWYCAST
+
+La versión del footer (**RWYCAST vX.Y.Z**) se controla desde **`version.json`** en la raíz del repo.
+
+## Antes de commit/push con cambios de producto
+
+1. Ejecutar según el tipo de cambio:
+   - **patch** — fixes, estética, textos: `node scripts/bump-version.mjs patch`
+   - **minor** — módulo nuevo o feature: `node scripts/bump-version.mjs minor`
+   - **major** — cambio grande de producto: `node scripts/bump-version.mjs major`
+2. Incluir en el commit **`version.json`** y **`js/config/version.js`** (generado).
+3. **No editar** `js/config/version.js` a mano.
+
+## Archivos
+
+| Archivo | Rol |
+|---------|-----|
+| `version.json` | Fuente única (major, minor, patch) |
+| `js/config/version.js` | Generado; define `APP_VERSION` para la app |
+| `scripts/bump-version.mjs` | Script de bump |
+
+## Hooks opcionales
+
+Si el desarrollador ejecutó `git config core.hooksPath .githooks`, el **pre-commit** sube `patch` solo cuando hay cambios de código.
+
+## Sync Vercel
+
+Tras push a `PipeATC/RWYCAST`, sincronizar `sebacpu/rwycast` para el deploy en Vercel.
