@@ -1,6 +1,14 @@
 // Layout — TopBar / AlertBanner / Footer / MobileTabs
 function TopBar({user,clock,view,setView,unread,onLogout}){
   const tabs=viewsFor(user.role).map(k=>[k,TAB_LABEL[k]]);
+  const [menuOpen,setMenuOpen]=useState(false);
+  const menuRef=useRef(null);
+  useEffect(()=>{
+    if(!menuOpen) return;
+    const close=e=>{ if(menuRef.current&&!menuRef.current.contains(e.target)) setMenuOpen(false); };
+    document.addEventListener('pointerdown',close);
+    return ()=>document.removeEventListener('pointerdown',close);
+  },[menuOpen]);
   return h('div',{className:'topbar'},
     h('div',{className:'brand'}, GLYPH, h('div',null,
       h('b',null,'RWYCAST'), h('small',null,'ATC · CHILE'))),
@@ -15,12 +23,17 @@ function TopBar({user,clock,view,setView,unread,onLogout}){
         h('div',{className:'lbl'},'UTC'),
         h('div',{className:'z'},clock.utc)),
     ),
-    h('div',{className:'who',onClick:onLogout,title:'Cerrar sesión'},
-      h('div',{className:'av'},user.name.replace(/[^A-Za-z]/g,'').slice(0,5).toUpperCase()),
-      h('div',{className:'meta'},
-        h('b',null,user.name),
-        h('br'),h('span',null, (()=>{const us=userUnits(user);const lbl=us.length>1?us[0]+' +'+(us.length-1):us[0];
-          return lbl?(ROLE_SHORT[user.role]+' · '+lbl):ROLE_LABEL[user.role];})())))
+    h('div',{className:'who-wrap',ref:menuRef},
+      h('button',{type:'button',className:'who'+(menuOpen?' open':''),onClick:()=>setMenuOpen(v=>!v),
+        title:'Cuenta'},
+        h('div',{className:'av'},user.name.replace(/[^A-Za-z]/g,'').slice(0,5).toUpperCase()),
+        h('div',{className:'meta'},
+          h('b',null,user.name),
+          h('br'),h('span',null, (()=>{const us=userUnits(user);const lbl=us.length>1?us[0]+' +'+(us.length-1):us[0];
+            return lbl?(ROLE_SHORT[user.role]+' · '+lbl):ROLE_LABEL[user.role];})()))),
+      menuOpen&&h('div',{className:'who-menu'},
+        h('button',{type:'button',className:'who-logout',onClick:()=>{ setMenuOpen(false); onLogout(); }},
+          'Cerrar sesión')))
   );
 }
 function AlertBanner({alerts,onAck,onAckAll}){
@@ -48,6 +61,7 @@ function Footer({user,clock,changedNow,syncMode}){
     h('div',{className:'fi'},'UNIDAD: ',h('b',null,'\u00A0'+(userUnits(user).join(' \u00B7 ')||ROLE_SHORT[user.role]))),
     h('div',{className:'fi'}, changedNow>0?h('span',{style:{color:'var(--amber)'}},'⚠ '+changedNow+' cambio(s) activo(s)'):'Sin alertas activas'),
     h('div',{className:'right'},
+      h('div',{className:'fi ver'},'RWYCAST ',h('b',null,APP_VERSION)),
       h('div',{className:'fi'},'Sync '+clock.hms+' Z'))
   );
 }

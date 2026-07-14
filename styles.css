@@ -84,11 +84,20 @@
   .clock .cgrp{display:flex;flex-direction:column;align-items:center}
   .clock .z{font-family:var(--mono);font-size:18px;font-weight:700;color:#fff;letter-spacing:.06em;line-height:1.15}
   .clock .lbl{font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:var(--ink-faint);text-align:center;margin-bottom:2px}
-  .who{display:flex;align-items:center;gap:10px;padding:0 16px;border-left:1px solid var(--line);cursor:pointer}
+  .who-wrap{position:relative;flex:0 0 auto;border-left:1px solid var(--line)}
+  .who{display:flex;align-items:center;gap:10px;padding:0 16px;height:100%;cursor:pointer;
+    background:transparent;border:none;color:inherit;font:inherit;width:100%}
+  .who.open,.who:hover{background:rgba(63,240,168,.04)}
   .who .av{min-width:30px;height:30px;padding:0 6px;border:1px solid var(--phos);display:grid;place-items:center;font-family:var(--mono);font-weight:700;font-size:12px;letter-spacing:.02em;color:var(--phos)}
-  .who .meta{font-family:var(--mono);font-size:10px;line-height:1.5}
+  .who .meta{font-family:var(--mono);font-size:10px;line-height:1.5;text-align:left}
   .who .meta b{color:var(--ink);font-size:11px}
   .who .meta span{color:var(--ink-faint)}
+  .who-menu{position:absolute;top:calc(100% + 2px);right:0;z-index:80;min-width:160px;
+    background:var(--panel-3);border:1px solid var(--line);box-shadow:0 8px 24px rgba(0,0,0,.45)}
+  .who-logout{display:block;width:100%;padding:11px 14px;background:transparent;border:none;
+    font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--amber);text-align:left;cursor:pointer;transition:.13s}
+  .who-logout:hover{background:rgba(255,180,84,.1);color:var(--ink)}
 
   /* ---------- body layout ---------- */
   .stage{flex:1 1 auto;display:flex;min-height:0}
@@ -527,6 +536,7 @@
   .footer{flex:0 0 auto;height:34px;border-top:1px solid var(--line);background:var(--panel-2);display:flex;align-items:center;gap:0;font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--ink-faint)}
   .footer .fi{padding:0 15px;border-right:1px solid var(--line-soft);height:100%;display:flex;align-items:center;gap:8px}
   .footer .fi b{color:var(--phos)}
+  .footer .fi.ver b{color:var(--ink-dim);font-weight:600}
   .footer .live{width:7px;height:7px;border-radius:50%;background:var(--phos);box-shadow:0 0 8px var(--phos);animation:pulse 1.4s infinite}
   .footer .right{margin-left:auto;display:flex;align-items:center;height:100%}
 
