@@ -50,6 +50,26 @@ function effectiveUnits(rec, usersMap){
   }
   return userUnits(rec);
 }
+// Dependencia (unidad ATC) a la que pertenece el usuario para Briefing, Rotación y
+// Bitácora. Un usuario de unidad ES una dependencia: su identidad es su propio username
+// (p. ej. "ACCS"), independiente de los aeródromos que tenga asignados para EDITAR en
+// units[] (esos son solo su jurisdicción editable en el visor). Sector y general
+// pertenecen a un usuario de unidad (parent) y comparten esa dependencia. El admin no
+// tiene dependencia propia (las ve todas).
+function userDep(u){
+  if(!u) return '';
+  if(u.role==='unit') return u.username;
+  if(roleNeedsParent(u.role)) return u.parent||'';
+  return '';
+}
+// Etiqueta de una dependencia para Briefing/Rotación/Bitácora/Dashboard. El código de la
+// dependencia ES el username del usuario de unidad (p. ej. "ACCS"), que es su identificador
+// operacional; se muestra tal cual. (El campo "Nombre para mostrar" del usuario puede ser
+// un nombre de persona, por eso no se usa aquí.) `users` se mantiene por si a futuro se
+// agrega un nombre de unidad dedicado.
+function depName(depCode, users){
+  return depCode||'—';
+}
 
 // Pestañas permitidas por rol (control de rutas / navegación)
 function viewsFor(role){
@@ -76,8 +96,8 @@ function canUseBitacora(user){ return !!user && (user.role==='admin'||user.role=
 function canEditBitacora(user,depCode,sectorUsername){
   if(!user) return false;
   if(user.role==='admin') return true;
-  if(user.role==='unit')  return userUnits(user).includes(depCode);
-  if(user.role==='sector') return user.username===sectorUsername && userUnits(user).includes(depCode);
+  if(user.role==='unit')  return userDep(user)===depCode;
+  if(user.role==='sector') return user.username===sectorUsername && userDep(user)===depCode;
   return false;
 }
 // ¿Puede generar el reporte imprimible de fin de día? admin y usuario de unidad.
@@ -89,7 +109,7 @@ function canUseRotacion(user){ return !!user; }
 function canEditRotacion(user,depCode){
   if(!user) return false;
   if(user.role==='admin') return true;
-  if(user.role==='unit')  return userUnits(user).includes(depCode);
+  if(user.role==='unit')  return userDep(user)===depCode;
   return false;
 }
 // --- Dashboard de toma de decisiones (carga de trabajo / dotación) ---

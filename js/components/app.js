@@ -444,7 +444,7 @@ function App(){
   const changedNow=airports.filter(a=>a.changed&&a.changed.length).length;
 
   return h('div',{style:{display:'contents'}},
-    h(TopBar,{user,clock,view,setView,unread,onLogout:logout,onManagePassword:()=>setPwOpen(true)}),
+    h(TopBar,{user,users,clock,view,setView,unread,onLogout:logout,onManagePassword:()=>setPwOpen(true)}),
     h('div',{className:'stage'},
       h('div',{className:'content'},
         alerts.length>0 && h(AlertBanner,{alerts,onAck:ackAlert,onAckAll:ackAll}),
@@ -452,7 +452,7 @@ function App(){
           query,setQuery,filter,setFilter,user,onEdit:setEditing,metars,
           watch,onAddWatch:addWatch,onRemoveWatch:removeWatch,onReorder:reorderWatch}),
         view==='log' && h(LogView,{logs,user}),
-        view==='brief' && h(Briefing,{airports,logs,user,metars}),
+        view==='brief' && h(Briefing,{airports,logs,user,metars,users}),
         view==='dashboard' && canUseDashboard(user) && h(Dashboard,{user,users}),
         view==='bitacora' && canUseBitacora(user) && h(Bitacora,{user,users}),
         view==='rotacion' && canUseRotacion(user) && h(Rotacion,{user,users}),
@@ -462,7 +462,7 @@ function App(){
           onNew:()=>setEditingUser({__new:true}),onEdit:u=>setEditingUser(u),onDelete:removeUser}),
       )
     ),
-    h(Footer,{user,clock,changedNow,syncMode}),
+    h(Footer,{user,users,clock,changedNow,syncMode}),
     h(MobileTabs,{view,setView,changedNow,user}),
     editing && h(Editor,{ap:editing,user,onClose:()=>setEditing(null),onSave:commitChange}),
     editingUser && h(UserEditor,{

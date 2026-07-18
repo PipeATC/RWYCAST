@@ -118,26 +118,29 @@ function dashFr24(r,dep,anchor,now){
 }
 
 // Estaciones (posiciones) y ATC de la dependencia; usa datos reales si existen.
+// La dependencia ES el usuario de unidad (username); sus sectores/generales lo tienen
+// como parent (userDep(u)===dep).
 function dashSectors(dep,users){
   const s=Object.values(users||{})
-    .filter(u=>u.role==='sector' && effectiveUnits(u,users).includes(dep))
+    .filter(u=>u.role==='sector' && userDep(u)===dep)
     .map(u=>u.posicion||u.username).filter(Boolean);
   return s.length?s:DASH_MOCK_SECT;
 }
 function dashAtcs(dep,users){
   const a=Object.values(users||{})
-    .filter(u=>u.role==='general' && u.iniciales && effectiveUnits(u,users).includes(dep))
+    .filter(u=>u.role==='general' && u.iniciales && userDep(u)===dep)
     .map(u=>u.iniciales);
   return a.length?a:DASH_MOCK_ATC;
 }
 function dashDepsFor(user,users){
   if(user.role==='admin'){
-    const set=new Set();
-    Object.values(users||{}).forEach(u=>{ if(u.role==='sector') effectiveUnits(u,users).forEach(c=>c&&set.add(c)); });
-    if(!set.size) UNITS.forEach(u=>set.add(u.code));
-    return [...set];
+    return Object.values(users||{})
+      .filter(u=>u.role==='unit')
+      .map(u=>u.username)
+      .sort();
   }
-  return userUnits(user);
+  const d=userDep(user);
+  return d?[d]:[];
 }
 
 /* Punto de conexión único. Devuelve el paquete de datos del dashboard.

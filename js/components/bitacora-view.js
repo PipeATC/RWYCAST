@@ -4,23 +4,23 @@
 // es editable para corregir errores. El usuario de unidad puede ver/editar todas las
 // posiciones de su dependencia y generar un reporte imprimible de fin de día.
 
-// Dependencias disponibles para el usuario (admin ve todas las que tengan sectores).
+// Dependencias disponibles para el usuario. La dependencia ES el usuario de unidad
+// (su username, p. ej. "ACCS"); el admin ve todos los usuarios de unidad existentes.
 function bitDepsFor(user,users){
   if(user.role==='admin'){
-    const set=new Set();
-    Object.values(users||{}).forEach(u=>{
-      if(u.role==='sector') effectiveUnits(u,users).forEach(c=>c&&set.add(c));
-    });
-    if(!set.size) UNITS.forEach(u=>set.add(u.code));
-    return [...set];
+    return Object.values(users||{})
+      .filter(u=>u.role==='unit')
+      .map(u=>u.username)
+      .sort();
   }
-  return userUnits(user);
+  const d=userDep(user);
+  return d?[d]:[];
 }
 // Posiciones (usuarios de sector) de una dependencia, uniendo las que ya tienen datos.
 function bitPositions(depCode,users,node){
   const map=new Map();
   Object.values(users||{}).forEach(u=>{
-    if(u.role==='sector' && effectiveUnits(u,users).includes(depCode))
+    if(u.role==='sector' && userDep(u)===depCode)
       map.set(u.username,{key:u.username, position:u.posicion||'', name:u.name||u.username});
   });
   Object.keys(node||{}).forEach(k=>{
@@ -31,7 +31,7 @@ function bitPositions(depCode,users,node){
 // Roster de controladores (usuarios generales con iniciales) de la dependencia.
 function bitControllers(depCode,users){
   return Object.values(users||{})
-    .filter(u=>u.role==='general' && u.iniciales && effectiveUnits(u,users).includes(depCode))
+    .filter(u=>u.role==='general' && u.iniciales && userDep(u)===depCode)
     .map(u=>({iniciales:u.iniciales, name:u.name||u.username, username:u.username}))
     .sort((a,b)=>a.iniciales.localeCompare(b.iniciales));
 }
@@ -40,7 +40,7 @@ function bitPosLabel(p){ return p ? (p.position?('POS '+p.position):p.name) : '�
 function Bitacora({user,users}){
   const isSector=user.role==='sector';
   const deps=bitDepsFor(user,users);
-  const [depCode,setDepCode]=useState(()=> isSector ? (userUnits(user)[0]||'') : (deps[0]||''));
+  const [depCode,setDepCode]=useState(()=> isSector ? (userDep(user)||'') : (deps[0]||''));
   const [date,setDate]=useState(()=>bitDateUTC());
   const [posKey,setPosKey]=useState(()=> isSector ? user.username : '');
   const [node,setNode]=useState({});
@@ -119,18 +119,18 @@ function Bitacora({user,users}){
   // ---- reporte imprimible (todas las posiciones con datos del día) ----
   if(report){
     const sheets=positions.filter(p=>((node[p.key]&&node[p.key].rows)||[]).length);
-    return h(BitReport,{depCode,date,positions:sheets.length?sheets:positions,node,onClose:()=>setReport(false)});
+    return h(BitReport,{depCode,depLabel:depName(depCode,users),date,positions:sheets.length?sheets:positions,node,onClose:()=>setReport(false)});
   }
 
   return h('div',null,
     h('div',{className:'phead',style:{borderTop:'none'}},
       h('h3',null,'Bitácora de posición · FORM ATC-6'),
-      h('span',{className:'sub'}, depAbbrev(depCode)+' · '+bitLongDate(date))),
+      h('span',{className:'sub'}, depName(depCode,users)+' · '+bitLongDate(date))),
     h('div',{className:'gridwrap'},
       // ---- barra de controles ----
       h('div',{className:'toolbar'},
         deps.length>1 && h('select',{className:'bit-sel',value:depCode,onChange:e=>setDepCode(e.target.value)},
-          deps.map(d=>h('option',{key:d,value:d}, depAbbrev(d)+' · '+d))),
+          deps.map(d=>h('option',{key:d,value:d}, depName(d,users)))),
         h('label',{className:'bit-date'},
           h('span',null,'FECHA'),
           h('input',{type:'date',value:date,max:bitDateUTC(),onChange:e=>{ flushSave(); setDate(e.target.value||bitDateUTC()); }})),
@@ -194,7 +194,8 @@ function Bitacora({user,users}){
 }
 
 /* -------- Reporte imprimible: réplica del FORM ATC-6 por posición -------- */
-function BitReport({depCode,date,positions,node,onClose}){
+function BitReport({depCode,depLabel,date,positions,node,onClose}){
+  const depTxt=depLabel||depCode;
   const MINLINES=18;
   const sheet=(p,idx)=>{
     const rows=(node[p.key]&&node[p.key].rows)||[];
@@ -214,7 +215,7 @@ function BitReport({depCode,date,positions,node,onClose}){
           h('td',{className:'bs-v'}, String(idx+1).padStart(2,'0'))),
         h('tr',null,
           h('td',{className:'bs-k'},'DEPENDENCIA'),
-          h('td',{className:'bs-v big'}, depAbbrev(depCode)),
+          h('td',{className:'bs-v big'}, depTxt),
           h('td',{className:'bs-k'},'POSICION'),
           h('td',{className:'bs-v big'}, p.position||p.name)))),
       h('table',{className:'bs-grid'},
@@ -228,7 +229,7 @@ function BitReport({depCode,date,positions,node,onClose}){
   };
   return h('div',{className:'bitprint'},
     h('div',{className:'bitprint-bar'},
-      h('div',null, h('b',null,'REPORTE BITÁCORA'),' · '+depAbbrev(depCode)+' · '+bitLongDate(date)+' · '+positions.length+' posición(es)'),
+      h('div',null, h('b',null,'REPORTE BITÁCORA'),' · '+depTxt+' · '+bitLongDate(date)+' · '+positions.length+' posición(es)'),
       h('div',{style:{display:'flex',gap:10}},
         h('button',{className:'btn primary',onClick:()=>window.print()},'Imprimir'),
         h('button',{className:'btn ghost',onClick:onClose},'Cerrar'))),

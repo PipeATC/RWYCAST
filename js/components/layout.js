@@ -22,7 +22,7 @@ const KeyIcon=()=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor'
   h('circle',{cx:8,cy:15,r:5}),
   h('path',{d:'M11.5 11.5 21 2M17 6l3 3M15.5 7.5l2 2'}));
 
-function TopBar({user,clock,view,setView,unread,onLogout,onManagePassword}){
+function TopBar({user,users,clock,view,setView,unread,onLogout,onManagePassword}){
   const tabs=viewsFor(user.role).map(k=>[k,TAB_LABEL[k]]);
   const [menuOpen,setMenuOpen]=useState(false);
   const [theme,setTheme]=useState(()=>document.body.classList.contains('theme-light')?'light':'dark');
@@ -57,7 +57,7 @@ function TopBar({user,clock,view,setView,unread,onLogout,onManagePassword}){
         h('div',{className:'av'},user.name.replace(/[^A-Za-z]/g,'').slice(0,5).toUpperCase()),
         h('div',{className:'meta'},
           h('b',null,user.name),
-          h('br'),h('span',null, (()=>{const us=userUnits(user);const lbl=us.length>1?us[0]+' +'+(us.length-1):us[0];
+          h('br'),h('span',null, (()=>{const dep=userDep(user);const lbl=dep?depName(dep,users):'';
             return lbl?(ROLE_SHORT[user.role]+' · '+lbl):ROLE_LABEL[user.role];})()))),
       menuOpen&&h('div',{className:'who-menu'},
         h('button',{type:'button',className:'who-item',onClick:toggleTheme,
@@ -88,14 +88,15 @@ function AlertBanner({alerts,onAck,onAckAll}){
           h('span',{className:'au'}, a.user+' · '+a.unit+' · '+a.zulu)),
         h('button',{className:'ack',onClick:()=>onAck(a.id)},'Enterado')))));
 }
-function Footer({user,clock,changedNow,syncMode}){
+function Footer({user,users,clock,changedNow,syncMode}){
   const synced=syncMode==='firebase';
+  const dep=userDep(user);
   return h('div',{className:'footer'},
     h('div',{className:'fi'},
       h('span',{className:'live',style:synced?null:{background:'var(--amber)',boxShadow:'0 0 8px var(--amber)'}}),
       h('b',{style:synced?null:{color:'var(--amber)'}},'RED OPERACIONAL'),
       synced?' · sincronizada':' · modo local (sin sync)'),
-    h('div',{className:'fi'},'UNIDAD: ',h('b',null,'\u00A0'+(userUnits(user).join(' \u00B7 ')||ROLE_SHORT[user.role]))),
+    h('div',{className:'fi'},'UNIDAD: ',h('b',null,'\u00A0'+(dep?depName(dep,users):ROLE_SHORT[user.role]))),
     h('div',{className:'fi'}, changedNow>0?h('span',{style:{color:'var(--amber)'}},'⚠ '+changedNow+' cambio(s) activo(s)'):'Sin alertas activas'),
     h('div',{className:'right'},
       h('div',{className:'fi ver'},'RWYCAST ',h('b',null,APP_VERSION)),

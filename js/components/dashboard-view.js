@@ -4,7 +4,7 @@
 // dotación disponible y fatiga por ATC, más recomendaciones derivadas.
 function Dashboard({user,users}){
   const deps=dashDepsFor(user,users);
-  const [depCode,setDepCode]=useState(()=> userUnits(user)[0]||deps[0]||'');
+  const [depCode,setDepCode]=useState(()=> userDep(user)||deps[0]||'');
   const [date,setDate]=useState(()=>rotToday());
   const [,setTick]=useState(0);
   useEffect(()=>{ const t=setInterval(()=>setTick(x=>x+1),60000); return ()=>clearInterval(t); },[]);
@@ -152,12 +152,12 @@ function Dashboard({user,users}){
 
   return h('div',null,
     h('div',{className:'phead',style:{borderTop:'none'}},
-      h('h3',null,'Dashboard de decisiones · '+depAbbrev(depCode)),
+      h('h3',null,'Dashboard de decisiones · '+depName(depCode,users)),
       h('span',{className:'sub'}, 'CARGA Y DOTACIÓN · '+rotLongDate(date))),
     h('div',{className:'gridwrap'},
       h('div',{className:'toolbar'},
         deps.length>1 && h('select',{className:'bit-sel',value:depCode,onChange:e=>setDepCode(e.target.value)},
-          deps.map(x=>h('option',{key:x,value:x}, depAbbrev(x)+' · '+x))),
+          deps.map(x=>h('option',{key:x,value:x}, depName(x,users)))),
         h('label',{className:'bit-date'}, h('span',null,'FECHA'),
           h('input',{type:'date',value:date,onChange:e=>setDate(e.target.value||rotToday())})),
         h('span',{className:'dash-sim'},'◆ DATOS SIMULADOS')),

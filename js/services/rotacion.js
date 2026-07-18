@@ -54,27 +54,31 @@ function rotLongDate(iso){
 }
 
 // Estaciones base = usuarios de sector de la dependencia (posición como etiqueta).
+// La dependencia ES el usuario de unidad (username); sus sectores son los que lo tienen
+// como parent (userDep(sector)===dep).
 function rotStationsFor(dep,users){
   return Object.values(users||{})
-    .filter(u=>u.role==='sector' && effectiveUnits(u,users).includes(dep))
+    .filter(u=>u.role==='sector' && userDep(u)===dep)
     .sort((a,b)=>((a.posicion||a.username)).localeCompare(b.posicion||b.username))
     .map(u=>({id:u.username, kind:'station', label:u.posicion||u.username}));
 }
 // Roster por defecto = iniciales de los usuarios general de la dependencia.
 function rotRosterFor(dep,users){
   return Object.values(users||{})
-    .filter(u=>u.role==='general' && u.iniciales && effectiveUnits(u,users).includes(dep))
+    .filter(u=>u.role==='general' && u.iniciales && userDep(u)===dep)
     .map(u=>u.iniciales).sort();
 }
-// Dependencias disponibles para el usuario.
+// Dependencias disponibles para el usuario. La dependencia ES el usuario de unidad
+// (su username); el admin ve todos los usuarios de unidad existentes.
 function rotDepsFor(user,users){
   if(user.role==='admin'){
-    const set=new Set();
-    Object.values(users||{}).forEach(u=>{ if(u.role==='sector') effectiveUnits(u,users).forEach(c=>c&&set.add(c)); });
-    if(!set.size) UNITS.forEach(u=>set.add(u.code));
-    return [...set];
+    return Object.values(users||{})
+      .filter(u=>u.role==='unit')
+      .map(u=>u.username)
+      .sort();
   }
-  return userUnits(user);
+  const d=userDep(user);
+  return d?[d]:[];
 }
 
 function rotDefaultDoc(turno,dep,users){

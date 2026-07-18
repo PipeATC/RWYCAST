@@ -9,7 +9,7 @@ function BfPill(status,onTap,editable){
     onClick:editable?onTap:undefined},status||'—');
 }
 
-function Briefing({airports,logs,user,metars}){
+function Briefing({airports,logs,user,metars,users}){
   const canEdit=user.role==='admin'||user.role==='unit';
   const [turno,setTurno]=useState('dia');
   const [uiMode,setUiMode]=useState(canEdit?'edit':'view');
@@ -73,7 +73,10 @@ function Briefing({airports,logs,user,metars}){
   if(!store) return h('div',{className:'brief'},h('div',{className:'bf-loading'},'Cargando planilla de briefing…'));
 
   const doc=getDoc();
-  const units=userUnits(user);
+  // La planilla de briefing es de la UNIDAD (dependencia), no de los aeródromos que el
+  // usuario pueda editar. Muestra el código de su dependencia (p. ej. "ACCS"); el admin
+  // usa la planilla global, así que cae a "ACCS".
+  const depTxt=userDep(user)?depName(userDep(user),users):'ACCS';
 
   /* --- primitivos reutilizables --- */
   const txt=(label,val,onCh,multi)=>{
@@ -220,7 +223,7 @@ function Briefing({airports,logs,user,metars}){
         h('button',{type:'button',className:uiMode==='edit'?'on':'',onClick:()=>setUiMode('edit')},'Editar'),
         h('button',{type:'button',className:uiMode==='view'?'on':'',onClick:()=>{ flushSave(); setUiMode('view'); }},'Vista')),
       h('div',{className:'bf-meta'},
-        (units.join(' · ')||'ACCS')+' · '+doc.date,
+        depTxt+' · '+doc.date,
         h('br'),'Actualizado '+ageMin(doc.updatedAt)+' · '+(doc.updatedBy||'—'))),
     BfSec('I','Meteorología',metAuto,
       txt('Apreciación general',doc.meteo.apreciacion,v=>upd(d=>{ d.meteo.apreciacion=v; return d; },false),true),

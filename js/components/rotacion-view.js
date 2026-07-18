@@ -4,7 +4,7 @@
 // pueden refundir (fusionar columnas en una banda). Horas trabajadas automáticas.
 function Rotacion({user,users}){
   const deps=rotDepsFor(user,users);
-  const [depCode,setDepCode]=useState(()=> userUnits(user)[0]||deps[0]||'');
+  const [depCode,setDepCode]=useState(()=> userDep(user)||deps[0]||'');
   const [date,setDate]=useState(()=>rotToday());
   const [turno,setTurno]=useState(()=> (rotNowMin()>=(20*60+20)||rotNowMin()<(8*60+45))?'noche':'dia');
   const [store,setStore]=useState(null);
@@ -69,7 +69,7 @@ function Rotacion({user,users}){
 
   if(!depCode) return h('div',null,rotHead('—',date,turno),
     h('div',{className:'empty'},'No hay dependencia asociada a tu cuenta.'));
-  if(store===null) return h('div',null,rotHead(depAbbrev(depCode),date,turno),
+  if(store===null) return h('div',null,rotHead(depName(depCode,users),date,turno),
     h('div',{className:'empty'},'Cargando cuadro de rotación…'));
 
   const published=!!(storeRef.current&&storeRef.current[turno]);
@@ -92,7 +92,7 @@ function Rotacion({user,users}){
       h('button',{className:turno==='dia'?'on':'',onClick:()=>switchTurno('dia')},'DÍA'),
       h('button',{className:turno==='noche'?'on':'',onClick:()=>switchTurno('noche')},'NOCHE')),
     deps.length>1 && h('select',{className:'bit-sel',value:depCode,onChange:e=>setDepCode(e.target.value)},
-      deps.map(d=>h('option',{key:d,value:d}, depAbbrev(d)+' · '+d))),
+      deps.map(d=>h('option',{key:d,value:d}, depName(d,users)))),
     h('label',{className:'bit-date'}, h('span',null,'FECHA'),
       h('input',{type:'date',value:date,onChange:e=>{ flush(); setDate(e.target.value||rotToday()); }})),
     !editable && h('span',{className:'bit-poschip'},'SOLO LECTURA'));
@@ -209,7 +209,7 @@ function Rotacion({user,users}){
   const foot=doc.updatedBy && h('div',{className:'bit-foot'},'Última edición · '+doc.updatedBy+' · '+ageMin(doc.updatedAt));
 
   return h('div',null,
-    rotHead(depAbbrev(depCode),date,turno),
+    rotHead(depName(depCode,users),date,turno),
     h('div',{className:'gridwrap'},
       toolbar,
       (!editable && !published)
