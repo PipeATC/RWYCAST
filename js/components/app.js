@@ -19,6 +19,7 @@ function App(){
   const [watch,setWatch]=useState([]);     // watchlist personal (ICAOs) de "Mi jurisdicción"
   const [users,setUsers]=useState({});       // base de usuarios (runcast/users)
   const [editingUser,setEditingUser]=useState(null); // usuario en edición (panel admin)
+  const [pwOpen,setPwOpen]=useState(false);          // modal "Administrar contraseña"
   const lastVer=useRef(0);
   const userRef=useRef(null); userRef.current=user;
   const usersMapRef=useRef({}); usersMapRef.current=users;
@@ -339,6 +340,21 @@ function App(){
     return {ok:true};
   }
 
+  // administrar contraseña desde el menú de cuenta: exige la contraseña actual
+  // antes de aplicar la nueva (verificación contra el hash almacenado).
+  async function changeMyPasswordSecure(currentPw,newPw){
+    const me=userRef.current; if(!me) return {error:'Sesión inválida'};
+    const cur=usersMapRef.current[me.username];
+    if(!cur) return {error:'Sesión inválida'};
+    const curHash=await hashPassword(currentPw, cur.salt||'');
+    if(curHash!==cur.passHash) return {error:'La contraseña actual es incorrecta'};
+    const salt=randSalt(); const passHash=await hashPassword(newPw,salt);
+    await writeUserDb(me.username,{...cur,salt,passHash,mustChangePassword:false});
+    setUser(u=>u?{...u,mustChangePassword:false}:u);
+    pushToast('ok','CONTRASEÑA ACTUALIZADA','Tu nueva contraseña quedó activa.');
+    return {ok:true};
+  }
+
   // --- gestión de usuarios (solo Administrador General) ---
   async function createUser(data){
     if(!canManageUsers(userRef.current)) return {error:'Sin permiso'};
@@ -428,7 +444,7 @@ function App(){
   const changedNow=airports.filter(a=>a.changed&&a.changed.length).length;
 
   return h('div',{style:{display:'contents'}},
-    h(TopBar,{user,clock,view,setView,unread,onLogout:logout}),
+    h(TopBar,{user,clock,view,setView,unread,onLogout:logout,onManagePassword:()=>setPwOpen(true)}),
     h('div',{className:'stage'},
       h('div',{className:'content'},
         alerts.length>0 && h(AlertBanner,{alerts,onAck:ackAlert,onAckAll:ackAll}),
@@ -455,6 +471,7 @@ function App(){
       onCreate:async d=>{const r=await createUser(d); if(r&&r.ok)setEditingUser(null); return r;},
       onSave:async (un,p)=>{const r=await saveUser(un,p); if(r&&r.ok)setEditingUser(null); return r;},
     }),
+    pwOpen && h(PasswordModal,{user,onSubmit:changeMyPasswordSecure,onClose:()=>setPwOpen(false)}),
     h('div',{className:'toasts'}, toasts.map(t=>
       h('div',{key:t.id,className:'toast'+(t.kind==='warn'?' warn':'')},
         h('b',null,t.title), h('span',null,t.msg))))

@@ -17,8 +17,12 @@ const SunIcon=()=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor'
 const MoonIcon=()=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor','stroke-width':2,
   'stroke-linecap':'round','stroke-linejoin':'round'},
   h('path',{d:'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z'}));
+const KeyIcon=()=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor','stroke-width':2,
+  'stroke-linecap':'round','stroke-linejoin':'round'},
+  h('circle',{cx:8,cy:15,r:5}),
+  h('path',{d:'M11.5 11.5 21 2M17 6l3 3M15.5 7.5l2 2'}));
 
-function TopBar({user,clock,view,setView,unread,onLogout}){
+function TopBar({user,clock,view,setView,unread,onLogout,onManagePassword}){
   const tabs=viewsFor(user.role).map(k=>[k,TAB_LABEL[k]]);
   const [menuOpen,setMenuOpen]=useState(false);
   const [theme,setTheme]=useState(()=>document.body.classList.contains('theme-light')?'light':'dark');
@@ -60,6 +64,10 @@ function TopBar({user,clock,view,setView,unread,onLogout}){
           title:theme==='light'?'Cambiar a tema oscuro':'Cambiar a tema claro'},
           theme==='light'?h(MoonIcon):h(SunIcon),
           theme==='light'?'Tema oscuro':'Tema claro'),
+        onManagePassword&&h('button',{type:'button',className:'who-item',
+          onClick:()=>{ setMenuOpen(false); onManagePassword(); },
+          title:'Cambiar tu contraseña'},
+          h(KeyIcon),'Administrar contraseña'),
         h('div',{className:'who-sep'}),
         h('button',{type:'button',className:'who-logout',onClick:()=>{ setMenuOpen(false); onLogout(); }},
           'Cerrar sesión')))

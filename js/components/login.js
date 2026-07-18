@@ -44,6 +44,49 @@ function Login({onLogin}){
   );
 }
 
+/* --------- Administrar contraseña (modal desde el menú de cuenta) --------- */
+function PasswordModal({user,onSubmit,onClose}){
+  const [cur,setCur]=useState(''); const [p1,setP1]=useState(''); const [p2,setP2]=useState('');
+  const [err,setErr]=useState(''); const [busy,setBusy]=useState(false);
+  const submit=async()=>{
+    if(busy) return;
+    if(!cur) return setErr('Ingresa tu contraseña actual');
+    if(p1.length<6) return setErr('La nueva contraseña debe tener 6+ caracteres');
+    if(p1!==p2) return setErr('Las contraseñas nuevas no coinciden');
+    if(p1===cur) return setErr('La nueva contraseña debe ser distinta a la actual');
+    setBusy(true); setErr('');
+    const r=await onSubmit(cur,p1); setBusy(false);
+    if(r&&r.error) return setErr(r.error);
+    onClose();
+  };
+  return h('div',{className:'scrim center',onClick:e=>{if(e.target===e.currentTarget)onClose();}},
+    h('div',{className:'pickbox'},
+      h('div',{className:'pickhead'},
+        h('b',null,'Administrar contraseña'),
+        h('button',{className:'x',onClick:onClose},'✕')),
+      h('div',{style:{padding:'20px 22px 22px'}},
+        h('div',{className:'field'},
+          h('label',null,'Contraseña actual'),
+          h('input',{type:'password',value:cur,placeholder:'••••••••',style:{fontSize:14},
+            onChange:e=>setCur(e.target.value)})),
+        h('div',{className:'field'},
+          h('label',null,'Nueva contraseña'),
+          h('input',{type:'password',value:p1,placeholder:'mínimo 6 caracteres',style:{fontSize:14},
+            onChange:e=>setP1(e.target.value)})),
+        h('div',{className:'field'},
+          h('label',null,'Repetir nueva contraseña'),
+          h('input',{type:'password',value:p2,placeholder:'••••••••',style:{fontSize:14},
+            onChange:e=>setP2(e.target.value),onKeyDown:e=>{if(e.key==='Enter')submit();}})),
+        err && h('div',{style:{fontFamily:'var(--mono)',fontSize:11,color:'var(--red)',marginBottom:14,letterSpacing:'.03em'}},'⚠ '+err),
+        h('div',{style:{display:'flex',gap:10}},
+          h('button',{className:'btn ghost',style:{flex:'0 0 auto'},onClick:onClose},'Cancelar'),
+          h('button',{className:'btn primary',style:{flex:1},disabled:busy,onClick:submit},
+            busy?'Guardando…':'Actualizar contraseña'))
+      )
+    )
+  );
+}
+
 /* ---------------- Cambio de contraseña obligatorio ---------------- */
 function ForcePassword({user,onSubmit,onLogout}){
   const [p1,setP1]=useState(''); const [p2,setP2]=useState('');
