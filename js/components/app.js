@@ -109,6 +109,7 @@ function App(){
           if(old && signal){
             ['rwyu','appu'].forEach(f=>{ if((old[f]||[]).join('|')!==(na[f]||[]).join('|')) changed.push(f); });
             if(JSON.stringify(old.epuse||{})!==JSON.stringify(na.epuse||{})) changed.push('epuse');
+            if(JSON.stringify(old.appuse||{})!==JSON.stringify(na.appuse||{})) changed.push('appuse');
             if((old.rwymode||'')!==(na.rwymode||'')) changed.push('rwymode');
           }
           // el parpadeo persiste hasta que se acuse (no se auto-borra)
@@ -225,10 +226,11 @@ function App(){
     let rwyu=(target.rwyu||[]).filter(x=>rwys.includes(x)); if(!rwyu.length) rwyu=[rwys[0]];
     const appu=(target.appu||[]).filter(x=>apps.includes(x));
     const epuse=reconcileEpUse(eps,stars,target.epuse);
+    const appuse=reconcileAppUse(eps,apps,target.appuse);
     const ts=Date.now();
     const stamp=(user.role==='unit'?target.owner:user.unit)||ROLE_SHORT[user.role]||'ADMIN';
     const newAirports=airports.map(a=>a.icao===icao
-      ? {...a,name,city,rwys,apps,eps,stars,charts,rwyu,appu,epuse,updatedAt:ts,updatedBy:user.name+' · '+stamp,changed:[]}
+      ? {...a,name,city,rwys,apps,eps,stars,charts,rwyu,appu,epuse,appuse,updatedAt:ts,updatedBy:user.name+' · '+stamp,changed:[]}
       : a);
     const summary='Data Base · '+diff.map(d=>fieldLabel(d.field)).join(', ')+' actualizado';
     const logEntry={id:ts,type:'cat',icao,unit:stamp,user:user.name,ts,diff,summary,zulu:nowZ()};
@@ -259,7 +261,7 @@ function App(){
     const stamp=user.unit||ROLE_SHORT[user.role]||'ADMIN';
     // la unidad propietaria es el propio aeródromo (su OACI): se crea como nueva unidad
     const newAp={icao, city:(data.city||'').trim(), name:(data.name||'').trim()||icao, owner:icao,
-      rwys, apps, eps, stars, charts, rwyu:[rwys[0]], appu:apps.length?[apps[0]]:[], epuse:reconcileEpUse(eps,stars,{}),
+      rwys, apps, eps, stars, charts, rwyu:[rwys[0]], appu:apps.length?[apps[0]]:[], epuse:reconcileEpUse(eps,stars,{}), appuse:{},
       updatedAt:ts, updatedBy:user.name+' · '+stamp, changed:[]};
     const newAirports=[...airports,newAp];
     const logEntry={id:ts,type:'cat',icao,unit:user.unit||stamp,user:user.name,ts,

@@ -1,6 +1,7 @@
 // Data Base — fieldLabel / cleanList / cleanStars / reconcileEpUse, …
 function fieldLabel(f){
   return f==='rwyu'?'PISTAS EN USO':f==='appu'?'APROX. EN USO':f==='epuse'?'STAR EN USO':
+         f==='appuse'?'APROX. POR PTO. ENTRADA':
          f==='rwymode'?'MODALIDAD':f==='epsel'?'PTOS. ENTRADA (TARJETA)':
          f==='rwys'?'PISTAS':f==='apps'?'APROX.':f==='eps'?'PTOS. ENTRADA':f==='stars'?'STARS':
          f==='charts'?'CARTAS (PDF)':
@@ -91,6 +92,29 @@ function appDisplayForStar(apps, appu, starName, rwyu){
   if(!starName) return published;
   const linked=appsForStar(apps, published, starName, rwyu);
   return linked.length ? linked : published;
+}
+// aproximación(es) a mostrar por punto de entrada: usa la asignación EXPLÍCITA por punto
+// (appuse[ep], puede ser más de una) si existe; si no, cae en la heurística por STAR.
+function appDisplayForEp(appuse, ep, apps, appu, starName, rwyu){
+  const explicit=((appuse||{})[ep]||[]).filter(Boolean);
+  if(explicit.length) return explicit;
+  return appDisplayForStar(apps, appu, starName, rwyu);
+}
+// representación estable de la aprox. en uso por punto para diff/registro
+function appUseStr(eps, m){
+  return (eps||[]).map(ep=>ep+'/'+(((m&&m[ep])||[]).join('+')||'—')).join(', ');
+}
+// reconcilia la aprox. en uso por punto contra el catálogo vigente (aprox. y puntos válidos)
+function reconcileAppUse(eps, apps, prev){
+  const validApp=new Set((apps||[]).map(x=>(x||'').trim()).filter(Boolean));
+  const validEp=new Set(eps||[]);
+  const out={};
+  Object.keys(prev||{}).forEach(ep=>{
+    if(!validEp.has(ep)) return;
+    const cur=((prev[ep])||[]).filter(x=>validApp.has(x));
+    if(cur.length) out[ep]=cur;
+  });
+  return out;
 }
 function starDisplayVal(stars, epuse, ep){
   if(!ep) return '';

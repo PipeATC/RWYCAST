@@ -21,7 +21,9 @@ const UNITS = [
                     publicada en la IP; en el visor abre el documento en ventana emergente
    Operación (puede haber más de una en uso):
      rwyu / appu  → pistas y aproximaciones EN USO
-     epuse        → {puntoEntrada: STAR en uso} — una STAR en uso por punto de entrada */
+     epuse        → {puntoEntrada: STAR en uso} — una STAR en uso por punto de entrada
+     appuse       → {puntoEntrada: [aprox...]} — aproximación(es) EN USO por punto/STAR
+                    (una o más); si falta, la tarjeta deriva la aprox. por heurística de STAR */
 
 /* Catálogo de aeródromos — SNAPSHOT del estado en vivo (Firebase RTDB
    runcast/state/v1/airports). STAR/IAC desde AIP CHILE AMDT NR 102 (14 MAY 2026);

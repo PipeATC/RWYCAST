@@ -164,7 +164,7 @@ function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
           h(EpFlowRow,{head:true}),
           epShown.map(ep=>{
             const star=starDisplayVal(a.stars,a.epuse,ep);
-            const apps=appDisplayForStar(a.apps,a.appu,star,a.rwyu);
+            const apps=appDisplayForEp(a.appuse,ep,a.apps,a.appu,star,a.rwyu);
             return h(EpFlowRow,{key:ep,ep,star,apps,charts:a.charts});
           }),
           (eps.length>epPrimary.length)&&h('button',{type:'button',className:'epmore',
@@ -193,8 +193,8 @@ function AirportCard({a,user,onEdit,metars,onRemove,onDragHandle,dragging}){
 /* ---------------- Editor Drawer ---------------- */
 function Editor({ap,user,onClose,onSave}){
   const [rwyu,setRwyu]=useState(ap.rwyu||[]);
-  const [appu,setAppu]=useState(ap.appu||[]);
   const [epuse,setEpuse]=useState(ap.epuse||{});
+  const [appuse,setAppuse]=useState(ap.appuse||{});
   const [rwymode,setRwymode]=useState(ap.rwymode||'');
   // puntos de entrada que se muestran en la tarjeta (hasta 4), elegidos de la lista completa
   const [epsel,setEpsel]=useState((ap.epsel||[]).slice(0,4));
@@ -204,9 +204,11 @@ function Editor({ap,user,onClose,onSave}){
     const a=(oldArr||[]).join(' / '), b=(newArr||[]).join(' / ');
     if(a!==b) diff.push({field,from:a||'—',to:b||'—'});
   };
-  cmpUse('rwyu',ap.rwyu,rwyu); cmpUse('appu',ap.appu,appu);
+  cmpUse('rwyu',ap.rwyu,rwyu);
   if(epUseStr(ap.eps,ap.epuse)!==epUseStr(ap.eps,epuse))
     diff.push({field:'epuse',from:epUseStr(ap.eps,ap.epuse),to:epUseStr(ap.eps,epuse)});
+  if(appUseStr(ap.eps,ap.appuse)!==appUseStr(ap.eps,appuse))
+    diff.push({field:'appuse',from:appUseStr(ap.eps,ap.appuse),to:appUseStr(ap.eps,appuse)});
   const selStr=arr=>(arr||[]).filter(Boolean).join(' / ');
   if(selStr(ap.epsel)!==selStr(epsel))
     diff.push({field:'epsel',from:selStr(ap.epsel)||'—',to:selStr(epsel)||'—'});
@@ -239,7 +241,6 @@ function Editor({ap,user,onClose,onSave}){
           h('div',{className:'seg'},
             [['','Ninguna'],['Mixta','Mixta'],['Semi-Mixta','Semi-Mixta'],['Segregada','Segregada']].map(o=>
               h('button',{key:o[1],className:(rwymode===o[0])?'on':'',onClick:()=>setRwymode(o[0])},o[1])))),
-        segMulti('Aproximaciones en uso', ap.apps, appu, setAppu),
         (ap.eps&&ap.eps.length>0) && h('div',{className:'field'},
           h('label',null,'Puntos de entrada en tarjeta ',h('span',{className:'hint'},'hasta 4')),
           h('div',{className:'epselgrid'},
@@ -253,17 +254,32 @@ function Editor({ap,user,onClose,onSave}){
                 opts.map(e=>h('option',{key:e,value:e},e)));
             }))),
         (ap.eps&&ap.eps.length>0) && h('div',{className:'field'},
-          h('label',null,'STAR en uso por punto de entrada ',h('span',{className:'hint'},'una por punto')),
+          h('label',null,'STAR y aproximación en uso por punto de entrada ',
+            h('span',{className:'hint'},'una STAR · una aprox.')),
           h('div',{className:'epuse'},
             ap.eps.map((ep,i)=>{
-              const opts=starsForEp(ap.stars,ep);
+              const starOpts=starsForEp(ap.stars,ep);
+              const appOpts=ap.apps||[];
+              const selApp=(appuse[ep]||[])[0]||'';
               return h('div',{className:'epuserow',key:i},
                 h('div',{className:'epusep'}, ep),
-                opts.length===0
-                  ? h('span',{className:'epusenone'},'sin STAR en Data Base')
-                  : h('div',{className:'seg'}, opts.map(o=>h('button',{key:o,
-                      className:(epuse[ep]===o)?'on':'',
-                      onClick:()=>setEpuse({...epuse,[ep]:o})},o))));
+                h('div',{className:'epusecol'},
+                  h('span',{className:'epusecolk'},'STAR'),
+                  starOpts.length===0
+                    ? h('span',{className:'epusenone'},'sin STAR en Data Base')
+                    : h('select',{className:'epselbox'+(epuse[ep]?'':' empty'),value:epuse[ep]||'',
+                        onChange:e=>setEpuse({...epuse,[ep]:e.target.value})},
+                        h('option',{value:''},'— sin STAR —'),
+                        starOpts.map(o=>h('option',{key:o,value:o},o)))),
+                h('div',{className:'epusecol'},
+                  h('span',{className:'epusecolk'},'Aprox.'),
+                  appOpts.length===0
+                    ? h('span',{className:'epusenone'},'sin aprox. en Data Base')
+                    : h('select',{className:'epselbox'+(selApp?'':' empty'),value:selApp,
+                        onChange:e=>{ const v=e.target.value;
+                          setAppuse(prev=>{ const out={...prev}; if(v) out[ep]=[v]; else delete out[ep]; return out; }); }},
+                        h('option',{value:''},'— sin aprox. —'),
+                        appOpts.map(o=>h('option',{key:o,value:o},o)))));
             }))),
         h('div',{className:'field'},
           h('label',null,'Observación operacional ',h('span',{className:'hint'},'opcional')),
@@ -272,7 +288,7 @@ function Editor({ap,user,onClose,onSave}){
       h('div',{className:'dfoot'},
         h('button',{className:'btn ghost',style:{flex:1},onClick:onClose},'Cancelar'),
         h('button',{className:'btn primary',style:{flex:2},disabled:diff.length===0||rwyu.length===0,
-          onClick:()=>onSave(ap.icao,{rwyu,appu,epuse,epsel:epsel.filter(Boolean),rwymode},diff)},
+          onClick:()=>onSave(ap.icao,{rwyu,epuse,appuse,epsel:epsel.filter(Boolean),rwymode},diff)},
           rwyu.length===0?'Selecciona pista en uso'
             :(diff.length?('Publicar '+diff.length+' cambio'+(diff.length>1?'s':'')):'Sin cambios')))
     )

@@ -319,11 +319,12 @@
   .seg button.on{color:var(--void);background:var(--phos);border-color:var(--phos)}
   /* selector de STAR en uso por punto de entrada (editor operacional) */
   .epuse{border:1px solid var(--line);background:var(--void)}
-  .epuserow{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line-soft);flex-wrap:wrap}
+  .epuserow{display:flex;align-items:flex-start;gap:12px;padding:10px 12px;border-bottom:1px solid var(--line-soft);flex-wrap:wrap}
   .epuserow:last-child{border-bottom:none}
-  .epusep{font-family:var(--mono);font-size:13px;font-weight:800;color:var(--phos);min-width:62px;letter-spacing:.04em}
-  .epuserow .seg{flex:1}
+  .epusep{font-family:var(--mono);font-size:13px;font-weight:800;color:var(--phos);min-width:62px;letter-spacing:.04em;padding-top:16px}
   .epusenone{font-family:var(--mono);font-size:10.5px;color:var(--amber)}
+  .epusecol{flex:1;min-width:120px;display:flex;flex-direction:column;gap:5px}
+  .epusecolk{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;color:var(--ink-faint);text-transform:uppercase}
   .dfoot{padding:16px 20px calc(16px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:10px}
   .btn{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;padding:12px 18px;cursor:pointer;border:1px solid;transition:.14s}
   .btn.primary{background:var(--phos);border-color:var(--phos);color:var(--void)}
