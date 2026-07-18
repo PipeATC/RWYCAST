@@ -69,16 +69,15 @@ function App(){
     if(!rec || rec.active===false) logout();
   },[users]);
 
-  // watchlist personal por unidad (persistida en el dispositivo)
+  // watchlist personal por unidad (persistida en el caché del equipo/dispositivo).
+  // Primer inicio de sesión en un equipo: el panel "Mi jurisdicción" arranca VACÍO
+  // para todos los roles; las tarjetas que agregue el usuario quedan cacheadas por
+  // equipo (localStorage) y se recuerdan en los próximos inicios de sesión.
   useEffect(()=>{
     if(!user) return;
     let saved=null;
     try{ saved=JSON.parse(localStorage.getItem('runcast:watch:'+user.username)||'null'); }catch(e){}
-    const myUnits=userUnits(user);
-    const def = user.role==='unit' ? AIRPORTS.filter(a=>myUnits.includes(a.owner)).map(a=>a.icao)
-              : user.role==='general' ? []
-              : AIRPORTS.map(a=>a.icao);   // admin / sector observan toda la red
-    setWatch(Array.isArray(saved) ? saved : def);
+    setWatch(Array.isArray(saved) ? saved : []);
   },[user]);
   useEffect(()=>{
     if(!user) return;
