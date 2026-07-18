@@ -95,6 +95,58 @@ function Dashboard({user,users}){
       h('span',{className:'dash-reco-ic'}, rc.level==='crit'?'▲':rc.level==='warn'?'!':'✓'),
       h('span',null,rc.text))));
 
+  // ---- dotación por turno: día (12) vs noche (8) ----
+  const shiftBlock=(t)=>{ const T=d.turnos[t], isNow=d.turnos.current===t;
+    return h('div',{className:'dash-shift '+t+(isNow?' now':''),key:t},
+      h('div',{className:'dash-shift-h'},
+        h('span',{className:'dash-shift-name'}, t==='dia'?'Turno día':'Turno noche'),
+        isNow&&h('span',{className:'dash-shift-now'},'EN CURSO'),
+        h('span',{className:'dash-shift-n'}, T.count+' ATC')),
+      h('div',{className:'dash-shift-chips'},
+        T.atcs.map(ini=>h('span',{className:'dash-chip',key:ini}, ini)))); };
+  const turnos=h('div',null, shiftBlock('dia'), shiftBlock('noche'));
+
+  // ---- FR24 (simulado): estadísticas de tránsito + FID ----
+  const fr=d.fr24, nf=n=>Number(n).toLocaleString('es-CL');
+  const movKpis=h('div',{className:'dash-kpis'},
+    kpi('Total movimientos', nf(fr.mov7.total), 'últimos 7 días', SK),
+    kpi('Despegues', nf(fr.mov7.takeoffs), 'últimos 7 días'),
+    kpi('Aterrizajes', nf(fr.mov7.landings), 'últimos 7 días'));
+  const statTable=(cols,rows,firstBold)=>h('table',{className:'dash-tbl'},
+    h('thead',null,h('tr',null, cols.map((c,i)=>h('th',{key:i,className:i?'r':''},c)))),
+    h('tbody',null, rows.map((row,ri)=>h('tr',{key:ri},
+      row.map((cell,ci)=>h('td',{key:ci,className:(ci?'r ':'')+(ci===0&&firstBold?'b':'')+(ci===1?' b':'')},
+        ci?nf(cell):cell))))));
+  const movTable=statTable(['Fecha','Total','Despegues','Aterrizajes'],
+    fr.perDay.map(x=>[x.date,x.total,x.takeoffs,x.landings]));
+  const rwyTable=statTable(['Pista','Total','Despegues','Aterrizajes'],
+    fr.runways.map(x=>[x.rwy,x.total,x.takeoffs,x.landings]), true);
+  const fidCol=(title,rows,placeLbl)=>h('div',{className:'dash-fid-col'},
+    h('div',{className:'dash-fid-h'}, title),
+    h('table',{className:'dash-tbl fid'},
+      h('thead',null,h('tr',null,
+        h('th',null,'Hora'), h('th',null,'Vuelo'), h('th',null,placeLbl),
+        h('th',null,'Aerolínea'), h('th',null,'Aeronave'), h('th',{className:'r'},'Estado'))),
+      h('tbody',null, rows.map((x,i)=>h('tr',{key:i},
+        h('td',{className:'mono'}, x.time),
+        h('td',{className:'sky b'}, x.flight),
+        h('td',null, x.place, h('span',{className:'dash-fid-code'}, ' '+x.code)),
+        h('td',{className:'dim'}, x.airline),
+        h('td',{className:'mono'}, x.aircraft, x.reg&&h('span',{className:'dash-fid-code'}, ' '+x.reg)),
+        h('td',{className:'r'}, h('span',{className:'dash-fid-st '+x.kind}, x.status)))))));
+  const fid=h('div',null,
+    h('div',{className:'dash-fid-bar'},
+      h('div',{className:'dash-fid-ap'}, h('b',null, fr.icao+' · '+fr.name),
+        fr.city&&h('span',null, fr.city)),
+      h('div',{className:'dash-fid-idx'},
+        h('span',null, h('em',null,'MY RATING'), fr.rating+'%'),
+        h('span',null, h('em',null,'DELAY LLEG.'), fr.arrDelay.toFixed(1)),
+        h('span',null, h('em',null,'DELAY SAL.'), fr.depDelay.toFixed(1)),
+        h('span',null, h('em',null,'LOCAL'), fr.localTime))),
+    h('div',{className:'dash-fid'},
+      fidCol('Llegadas', fr.arrivals, 'Origen'),
+      fidCol('Salidas', fr.departures, 'Destino')));
+
   const card=(title,sub,body,cls)=>h('div',{className:'dash-card'+(cls?' '+cls:'')},
     h('div',{className:'dash-card-h'}, h('h4',null,title), sub&&h('span',null,sub)), body);
 
@@ -112,10 +164,19 @@ function Dashboard({user,users}){
       kpis,
       h('div',{className:'dash-grid'},
         card('Demanda vs capacidad por hora','movimientos/hora',hourlyChart,'wide'),
+        card('Rotación de turnos', d.turnos.dia.count+' día · '+d.turnos.noche.count+' noche', turnos),
         card('Carga por sector','ahora',sectBars),
         card('Dotación de turno', dt.total+' ATC', dotacion),
         card('Fatiga por ATC','estimada',fatiga),
         card('Recomendaciones','soporte a la decisión',recos,'wide')),
+      h('div',{className:'dash-sec'}, 'Tránsito del aeropuerto',
+        h('span',null,'FR24 · SIMULADO · '+fr.icao)),
+      movKpis,
+      h('div',{className:'dash-grid'},
+        card('Movimientos por día','últimos 7 días',movTable),
+        card('Uso de pistas','últimos 7 días',rwyTable),
+        card('FID · '+fr.icao,'llegadas y salidas',fid,'wide')),
       h('div',{className:'dash-note'},
-        'Datos de demostración. Próximamente se vincularán con el módulo ATFM (Power BI) para alimentar la carga real y apoyar la asignación de personal a posiciones.')));
+        'Datos de demostración. La carga y dotación se vincularán con el módulo ATFM (Power BI); '
+        +'las estadísticas de movimientos, uso de pistas y el FID simulan un feed tipo Flightradar24.')));
 }

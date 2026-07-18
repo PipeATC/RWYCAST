@@ -892,3 +892,71 @@
   /* Categoría meteorológica de vuelo: VFR se mantiene verde para no confundirse
      con MVFR (azul). Es una escala operativa de seguridad, no acento de marca. */
   body.theme-light .fr.VFR{color:#059669;border-color:#059669}
+  /* FID: "aterrizado/despegó" en verde (como FR24) para no colisionar con
+     "estimado" (azul) en el tema claro, donde el acento ya es azul. */
+  body.theme-light .dash-fid-st.ok{color:#059669}
+
+  /* ============================================================
+     DASHBOARD · dotación por turno (día/noche) + estadísticas FR24
+     ============================================================ */
+  /* sub-encabezado de sección */
+  .dash-sec{display:flex;align-items:baseline;gap:10px;margin:22px 0 12px;padding-top:16px;
+    border-top:1px solid var(--line);font-family:var(--mono);font-size:12px;font-weight:800;
+    letter-spacing:.12em;text-transform:uppercase;color:var(--ink)}
+  .dash-sec span{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.1em;
+    text-transform:none;color:var(--amber)}
+
+  /* turno día / noche */
+  .dash-shift{border:1px solid var(--line);background:var(--panel-2);padding:10px 12px;margin-bottom:10px}
+  .dash-shift:last-child{margin-bottom:0}
+  .dash-shift.now{border-color:var(--phos);box-shadow:inset 3px 0 0 var(--phos)}
+  .dash-shift-h{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+  .dash-shift-name{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--ink)}
+  .dash-shift-now{font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.1em;
+    color:var(--phos);border:1px solid var(--phos);padding:2px 6px}
+  .dash-shift-n{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-dim);
+    font-variant-numeric:tabular-nums}
+  .dash-shift-chips{display:flex;flex-wrap:wrap;gap:5px}
+  .dash-chip{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.04em;
+    color:var(--sky);border:1px solid var(--line);background:var(--panel);padding:3px 7px}
+  .dash-shift.noche .dash-chip{color:var(--violet)}
+
+  /* tablas de estadísticas (movimientos / pistas / FID) */
+  .dash-tbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px}
+  .dash-tbl th{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);
+    font-weight:600;text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .dash-tbl td{padding:7px 10px;border-bottom:1px solid var(--line-soft);color:var(--ink-dim);
+    font-variant-numeric:tabular-nums;white-space:nowrap}
+  .dash-tbl tr:last-child td{border-bottom:none}
+  .dash-tbl .r{text-align:right}
+  .dash-tbl td.b{color:var(--ink);font-weight:700}
+  .dash-tbl tbody tr:hover{background:var(--line-soft)}
+
+  /* FID — barra de cabecera + doble tablero llegadas/salidas */
+  .dash-fid-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 12px;margin-bottom:12px;
+    border:1px solid var(--line);background:var(--panel-2)}
+  .dash-fid-ap b{font-family:var(--mono);font-size:12px;color:var(--phos);letter-spacing:.04em}
+  .dash-fid-ap span{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);margin-left:8px;letter-spacing:.06em}
+  .dash-fid-idx{margin-left:auto;display:flex;gap:16px;flex-wrap:wrap}
+  .dash-fid-idx span{display:flex;flex-direction:column;font-family:var(--mono);font-size:12px;
+    font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+  .dash-fid-idx em{font-style:normal;font-size:8px;letter-spacing:.14em;color:var(--ink-faint);
+    font-weight:600;margin-bottom:2px}
+  .dash-fid{display:grid;grid-template-columns:1fr;gap:18px}
+  .dash-fid-col{min-width:0;overflow-x:auto}
+  .dash-fid-h{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--ink);margin-bottom:7px}
+  .dash-tbl.fid{font-size:11px}
+  .dash-tbl.fid th,.dash-tbl.fid td{padding:6px 8px}
+  .dash-tbl td.sky{color:var(--sky)}
+  .dash-tbl td.dim{color:var(--ink-faint);font-size:10px;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;max-width:120px}
+  .dash-tbl td.mono{color:var(--ink)}
+  .dash-fid-code{color:var(--ink-faint);font-size:9px}
+  .dash-fid-st{font-family:var(--mono);font-size:10px;font-weight:700;white-space:nowrap}
+  .dash-fid-st.ok{color:var(--phos)}
+  .dash-fid-st.sky{color:var(--sky)}
+  .dash-fid-st.warn{color:var(--amber)}
+  .dash-fid-st.crit{color:var(--red)}
+  .dash-fid-st.dim{color:var(--ink-faint)}
