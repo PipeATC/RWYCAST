@@ -92,8 +92,14 @@
   .who .meta{font-family:var(--mono);font-size:10px;line-height:1.5;text-align:left}
   .who .meta b{color:var(--ink);font-size:11px}
   .who .meta span{color:var(--ink-faint)}
-  .who-menu{position:absolute;top:calc(100% + 2px);right:0;z-index:80;min-width:160px;
+  .who-menu{position:absolute;top:calc(100% + 2px);right:0;z-index:80;min-width:172px;
     background:var(--panel-3);border:1px solid var(--line);box-shadow:0 8px 24px rgba(0,0,0,.45)}
+  .who-item{display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;background:transparent;border:none;
+    font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-dim);text-align:left;cursor:pointer;transition:.13s}
+  .who-item:hover{background:rgba(63,240,168,.08);color:var(--phos)}
+  .who-item svg{width:15px;height:15px;flex:0 0 auto}
+  .who-sep{height:1px;background:var(--line);margin:0}
   .who-logout{display:block;width:100%;padding:11px 14px;background:transparent;border:none;
     font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
     color:var(--amber);text-align:left;cursor:pointer;transition:.13s}
@@ -797,3 +803,92 @@
     .dash-grid{grid-template-columns:1fr}
     .dash-card.wide{grid-column:auto}
   }
+
+  /* ============================================================
+     TEMA CLARO  ·  "AeroMetric Light"
+     Superficies slate + acento aviación (esmeralda), datos JetBrains Mono.
+     Se activa con la clase body.theme-light (menú de usuario).
+     El sistema es 100% variable-driven: basta con remapear los tokens
+     de color; abajo solo se corrigen los pocos valores fijos que no
+     heredan de las variables (dígitos del reloj, banner de alerta ámbar,
+     rellenos ámbar con texto oscuro y la textura de scanlines CRT).
+     ============================================================ */
+  body.theme-light{
+    color-scheme:light;
+    /* superficies */
+    --void:#eef1f5;            /* base recesada: fondo de página + relleno de inputs + texto sobre acento */
+    --panel:#ffffff;           /* tarjeta/superficie elevada */
+    --panel-2:#f5f7f9;         /* cabeceras, barras, gradiente superior de tarjeta */
+    --panel-3:#e9edf1;         /* menú, pistas de barras, hover */
+    --line:#e2e8f0;            /* borde estructural (slate-200) */
+    --line-soft:#eef2f6;       /* divisor interno (slate-100) */
+    /* texto */
+    --ink:#0f172a;             /* primario (slate-900) */
+    --ink-dim:#475569;         /* secundario (slate-600) */
+    --ink-faint:#64748b;       /* metadatos / etiquetas (slate-500) */
+    /* acentos */
+    --phos:#0284c7;            /* acento de datos (sky-600) — OACI, pistas, puntos de entrada */
+    --phos-deep:#bae6fd;       /* borde de acento tenue (sky-200) */
+    --amber:#b45309;           /* precaución (amber-700) */
+    --amber-deep:#fcd34d;      /* borde ámbar tenue (amber-300) */
+    --red:#dc2626;             /* alerta (red-600) */
+    --sky:#0284c7;             /* informativo / enlaces (sky-600) */
+    --violet:#7c3aed;
+    /* sin fósforo: el brillo se neutraliza en modo claro */
+    --glow:0 0 0 rgba(0,0,0,0);
+    background:
+      radial-gradient(1200px 700px at 80% -10%, rgba(4,120,87,.045), transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, rgba(2,132,199,.035), transparent 55%),
+      var(--void);
+    color:var(--ink);
+  }
+  /* fuera la textura de scanlines: no corresponde al lenguaje claro */
+  body.theme-light::after{display:none}
+
+  /* dígitos del reloj: eran #fff fijos → invisibles sobre claro */
+  body.theme-light .clock .z{color:var(--ink)}
+
+  /* dropdown del menú de usuario: sombra suave (la fija era negra .45) */
+  body.theme-light .who-menu{box-shadow:0 10px 28px rgba(15,23,42,.14)}
+
+  /* banner de alerta: era un degradado marrón/ámbar oscuro fijo */
+  body.theme-light .alertbar{
+    background:linear-gradient(180deg,#fff7ed,#ffe8cc);
+    box-shadow:0 6px 18px rgba(180,83,9,.14)}
+  /* rellenos ámbar con texto casi negro fijo → texto blanco sobre ámbar oscuro */
+  body.theme-light .alertbar .ah .ackall,
+  body.theme-light .railnav .badge{color:#fff}
+
+  /* tarjetas-botón "+": el relleno blanco .012 desaparece sobre blanco */
+  body.theme-light .apcard.addcard,
+  body.theme-light .catnewcard{background:rgba(15,23,42,.015)}
+
+  /* selector de fecha nativo (Bitácora): venía forzado a esquema oscuro */
+  body.theme-light .bit-date input{color-scheme:light}
+
+  /* Los lavados de estado activo/hover son verdes fijos (fósforo del tema oscuro).
+     Con acento azul se retiñen a azul para que acompañen al texto. */
+  body.theme-light .nav button:hover,
+  body.theme-light .who.open, body.theme-light .who:hover,
+  body.theme-light .who-item:hover,
+  body.theme-light .apcard.addcard:hover,
+  body.theme-light .catadd:hover, body.theme-light .catnewcard:hover,
+  body.theme-light .apfoot .editlink:hover,
+  body.theme-light .pickrow:hover,
+  body.theme-light .bf-signbtn:hover{background:rgba(2,132,199,.06)}
+  body.theme-light .nav button.on,
+  body.theme-light .railnav button.on,
+  body.theme-light .filterbtn.on,
+  body.theme-light .bf-toggrp button.on,
+  body.theme-light .bfpill.st-ok,
+  body.theme-light .unitsel button.on,
+  body.theme-light table.bit tr.open{background:rgba(2,132,199,.08)}
+  body.theme-light .rot-cell.merged{background:rgba(2,132,199,.08)}
+  body.theme-light tr.rot-now td{background:rgba(2,132,199,.10)}
+  body.theme-light .chartlink:hover{box-shadow:0 0 10px rgba(2,132,199,.35)}
+  body.theme-light .login{
+    background:radial-gradient(900px 600px at 50% 20%, rgba(2,132,199,.06), transparent 60%),var(--void)}
+
+  /* Categoría meteorológica de vuelo: VFR se mantiene verde para no confundirse
+     con MVFR (azul). Es una escala operativa de seguridad, no acento de marca. */
+  body.theme-light .fr.VFR{color:#059669;border-color:#059669}

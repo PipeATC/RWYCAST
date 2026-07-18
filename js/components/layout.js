@@ -1,7 +1,27 @@
 // Layout — TopBar / AlertBanner / Footer / MobileTabs
+
+// Conmutador de tema (claro/oscuro). El tema vive como clase en <body> y se
+// recuerda en el dispositivo; el script inline de index.html lo aplica al cargar
+// para evitar parpadeo antes de que React monte.
+const THEME_KEY='runcast:theme';
+function applyTheme(mode){
+  document.body.classList.toggle('theme-light', mode==='light');
+  try{ localStorage.setItem(THEME_KEY, mode); }catch(e){}
+  const m=document.querySelector('meta[name="theme-color"]');
+  if(m) m.setAttribute('content', mode==='light'?'#eef1f5':'#070b0e');
+}
+const SunIcon=()=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor','stroke-width':2,
+  'stroke-linecap':'round','stroke-linejoin':'round'},
+  h('circle',{cx:12,cy:12,r:4}),
+  h('path',{d:'M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'}));
+const MoonIcon=()=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor','stroke-width':2,
+  'stroke-linecap':'round','stroke-linejoin':'round'},
+  h('path',{d:'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z'}));
+
 function TopBar({user,clock,view,setView,unread,onLogout}){
   const tabs=viewsFor(user.role).map(k=>[k,TAB_LABEL[k]]);
   const [menuOpen,setMenuOpen]=useState(false);
+  const [theme,setTheme]=useState(()=>document.body.classList.contains('theme-light')?'light':'dark');
   const menuRef=useRef(null);
   useEffect(()=>{
     if(!menuOpen) return;
@@ -9,6 +29,10 @@ function TopBar({user,clock,view,setView,unread,onLogout}){
     document.addEventListener('pointerdown',close);
     return ()=>document.removeEventListener('pointerdown',close);
   },[menuOpen]);
+  function toggleTheme(){
+    const next=theme==='light'?'dark':'light';
+    applyTheme(next); setTheme(next); setMenuOpen(false);
+  }
   return h('div',{className:'topbar'},
     h('div',{className:'brand'}, GLYPH, h('div',null,
       h('b',null,'RWYCAST'), h('small',null,'ATC · CHILE'))),
@@ -32,6 +56,11 @@ function TopBar({user,clock,view,setView,unread,onLogout}){
           h('br'),h('span',null, (()=>{const us=userUnits(user);const lbl=us.length>1?us[0]+' +'+(us.length-1):us[0];
             return lbl?(ROLE_SHORT[user.role]+' · '+lbl):ROLE_LABEL[user.role];})()))),
       menuOpen&&h('div',{className:'who-menu'},
+        h('button',{type:'button',className:'who-item',onClick:toggleTheme,
+          title:theme==='light'?'Cambiar a tema oscuro':'Cambiar a tema claro'},
+          theme==='light'?h(MoonIcon):h(SunIcon),
+          theme==='light'?'Tema oscuro':'Tema claro'),
+        h('div',{className:'who-sep'}),
         h('button',{type:'button',className:'who-logout',onClick:()=>{ setMenuOpen(false); onLogout(); }},
           'Cerrar sesión')))
   );
