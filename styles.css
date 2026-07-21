@@ -961,3 +961,19 @@
   .dash-fid-st.warn{color:var(--amber)}
   .dash-fid-st.crit{color:var(--red)}
   .dash-fid-st.dim{color:var(--ink-faint)}
+
+  /* Badge de origen en vivo (ATFM real) — sobreescribe el ámbar "simulado" */
+  .dash-sim.live{color:var(--phos);border-color:var(--phos-deep)}
+  /* Regulaciones / slots ATFM */
+  .dash-regs{display:flex;flex-direction:column;gap:8px}
+  .dash-reg{border-left:2px solid var(--line);background:var(--panel-2);padding:8px 12px;font-family:var(--mono)}
+  .dash-reg.ok{border-left-color:var(--phos)}
+  .dash-reg.warn{border-left-color:var(--amber)}
+  .dash-reg.crit{border-left-color:var(--red)}
+  .dash-reg-top{display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--ink)}
+  .dash-reg-ref{font-weight:700;letter-spacing:.06em}
+  .dash-reg-sec{color:var(--sky)}
+  .dash-reg-win{margin-left:auto;color:var(--ink-dim);font-variant-numeric:tabular-nums}
+  .dash-reg-bot{display:flex;flex-wrap:wrap;gap:12px;margin-top:5px;font-size:10px;color:var(--ink-dim)}
+  .dash-reg-delay{color:var(--amber)}
+  .dash-reg-rsn{color:var(--ink-faint)}

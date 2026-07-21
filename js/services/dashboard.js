@@ -143,24 +143,69 @@ function dashDepsFor(user,users){
   return d?[d]:[];
 }
 
+/* ---- Mezcla del feed ATFM real (ver js/services/atfm.js) ----
+   Cada helper devuelve el dato real si el paquete ATFM lo trae con forma
+   válida, o null/[] para que dashboardData() caiga al mock. Así el tablero
+   funciona con ATFM completo, parcial (p. ej. solo horario) o ausente. */
+function dashNum(v){ v=Number(v); return Number.isFinite(v)?v:null; }
+// Curva horaria (24) desde ATFM. Deriva complejidad de la carga si no viene.
+function dashAtfmHourly(A, cap){
+  if(!A || !Array.isArray(A.hourly) || A.hourly.length!==24) return null;
+  return A.hourly.map((x,h)=>{
+    const demanda=Math.max(0, Math.round(dashNum(x&&x.demanda)||0));
+    const capH=Math.max(1, Math.round(dashNum(x&&x.capacidad)||cap));
+    const cx=dashNum(x&&x.complejidad);
+    const complejidad=cx!=null?Math.round(cx):Math.round(45+Math.min(1,demanda/capH)*50);
+    return { h, demanda, capacidad:capH, complejidad };
+  });
+}
+// Carga por sector desde ATFM (con ratio/estado calculados).
+function dashAtfmSectores(A){
+  if(!A || !Array.isArray(A.sectores) || !A.sectores.length) return null;
+  return A.sectores.map(s=>{
+    const load=Math.max(0, Math.round(dashNum(s&&s.load)||0));
+    const cap=Math.max(1, Math.round(dashNum(s&&s.cap)||1));
+    return { code:(s&&s.code)||'?', load, cap, ratio:load/cap, status:dashStatus(load/cap) };
+  }).sort((a,b)=>b.ratio-a.ratio);
+}
+// Regulaciones / slots ATFM (normalizadas). Arreglo posiblemente vacío.
+function dashAtfmRegs(A){
+  if(!A || !Array.isArray(A.regulaciones)) return [];
+  return A.regulaciones.map(g=>({
+    ref:(g&&g.ref)||'', sector:(g&&g.sector)||'', from:(g&&g.from)||'', to:(g&&g.to)||'',
+    rate:dashNum(g&&g.rate), delay:dashNum(g&&g.delay),
+    reason:(g&&g.reason)||'', level:(g&&g.level)==='crit'?'crit':(g&&g.level)==='ok'?'ok':'warn'
+  }));
+}
+
 /* Punto de conexión único. Devuelve el paquete de datos del dashboard.
-   Reemplazar el cuerpo por la llamada real a ATFM/Power BI conservando la forma. */
-function dashboardData(dep,users,dateStr){
+   `atfm` = paquete real de la dependencia (atfmForDep) o null → cae al mock.
+   La forma de salida es estable: la vista no cambia según el origen. */
+function dashboardData(dep,users,dateStr,atfm){
   const r=dashRng(dashHash((dep||'')+'|'+(dateStr||'')));
   const nowH=new Date().getHours();
-  const capacidad=48;                              // capacidad declarada por hora (mock)
-  const hourly=DASH_SHAPE.map((base,h)=>({
+  const A=(atfm&&typeof atfm==='object')?atfm:null;
+  // capacidad declarada: ATFM manda si la entrega; si no, mock (48).
+  const capacidad=(A&&dashNum(A.capacidad)>0)?Math.round(A.capacidad):48;
+  // curva horaria: real de ATFM si viene con 24 puntos; si no, mock determinista.
+  const realHourly=dashAtfmHourly(A,capacidad);
+  const hourly=realHourly || DASH_SHAPE.map((base,h)=>({
     h, demanda:dashJit(r,base,0.14),
     capacidad, complejidad:Math.round(40+r()*55)   // índice de complejidad 40-95
   }));
   const curDem=hourly[nowH].demanda, nextDem=hourly[(nowH+1)%24].demanda;
   const ratio=curDem/capacidad;
 
+  // Posiciones de control (roster) — siguen alimentando dotación y "sectores abiertos".
   const sectNames=dashSectors(dep,users);
-  const sectores=sectNames.map(code=>{ const cap=Math.round(38+r()*16);
+  // Carga por sector: real de ATFM si viene; si no, mock por posición del roster.
+  const realSect=dashAtfmSectores(A);
+  const sectores=realSect || sectNames.map(code=>{ const cap=Math.round(38+r()*16);
     const load=dashJit(r,cap*(0.55+r()*0.6),0.1);
     return {code, load, cap, ratio:load/cap, status:dashStatus(load/cap)}; })
     .sort((a,b)=>b.ratio-a.ratio);
+  // Regulaciones / slots ATFM (solo del feed real).
+  const regulaciones=dashAtfmRegs(A);
 
   // Dotación por turno: día (12) y noche (8). El turno vigente alimenta fatiga/dotación.
   const dayRoster=dashAtcs(dep,users);        // 12 (usuarios general reales o mock)
@@ -191,6 +236,15 @@ function dashboardData(dep,users,dateStr){
   const tired=atcs.filter(a=>a.status==='crit');
   if(tired.length) rec.push({level:'warn',text:'ATC '+tired.map(a=>a.ini).join(', ')+' con fatiga alta. Programe relevo o descanso prolongado.'});
   if(disponible<=1) rec.push({level:'warn',text:'Dotación disponible ajustada ('+disponible+'). Margen limitado ante ausencias o picos.'});
+  // Regulaciones ATFM activas → recomendación prioritaria (se antepone).
+  if(regulaciones.length){
+    const worst=regulaciones.reduce((m,x)=>((x.delay||0)>(m.delay||0)?x:m),regulaciones[0]);
+    rec.unshift({level:(worst.delay||0)>=15?'crit':'warn',
+      text:'ATFM: '+regulaciones.length+' regulación(es) de flujo activa(s)'
+        +(worst.sector?', mayor demora en '+worst.sector:'')
+        +(worst.delay!=null?' ('+worst.delay+' min)':'')
+        +'. Ajuste secuenciación y refuerce dotación en las franjas reguladas.'});
+  }
   if(!rec.length) rec.push({level:'ok',text:'Carga y dotación equilibradas. Sin ajustes recomendados por ahora.'});
 
   return {
@@ -206,6 +260,11 @@ function dashboardData(dep,users,dateStr){
     turnos:{ current:shift,
       dia:{count:dayRoster.length, atcs:dayRoster},
       noche:{count:nightRoster.length, atcs:nightRoster} },
+    regulaciones,
+    // Metadatos del origen: qué bloques vienen del ATFM real vs simulados.
+    atfm:{ live:!!(realHourly||realSect||regulaciones.length),
+      source:A&&A.source||null, updatedAt:A&&dashNum(A.updatedAt)||null,
+      fields:{ hourly:!!realHourly, sectores:!!realSect, regulaciones:regulaciones.length>0 } },
     fr24:dashFr24(r, dep, dashDateFromIso(dateStr), new Date()),
   };
 }

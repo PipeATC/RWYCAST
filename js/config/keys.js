@@ -19,4 +19,5 @@ const BITKEY='runcast:bitacora:v1';    // clave local de la Bitácora de Posici�
 const BITPATH='runcast/bitacora';      // ruta compartida de la Bitácora en Firebase
 const ROTKEY='runcast:rotacion:v1';    // clave local del cuadro de Rotación de estaciones
 const ROTPATH='runcast/rotacion';      // ruta compartida de la Rotación en Firebase
+const ATFMPATH='runcast/atfm';         // feed ATFM por dependencia (lo escribe el Worker; ver js/services/atfm.js)
 const SESSION_KEY='runcast:session';   // sesión recordada ("mantener sesión iniciada")
