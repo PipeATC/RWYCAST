@@ -13,23 +13,33 @@
    Cambiar de origen (export CSV, API oficial, carga manual) = cambiar el
    Worker; la app no se toca mientras se respete este contrato.
 
-   CONTRATO  /runcast/atfm/<dep>   (todos los campos son OPCIONALES):
+   CONTRATO  /runcast/atfm/<dep>   (todos los campos son OPCIONALES).
+
+   Un DÍA es este paquete:
    {
-     updatedAt: 1721563200000,   // ms epoch de la última escritura del feed
-     source:    'powerbi-ptw',   // origen: powerbi-ptw | api | manual
      capacidad: 48,              // capacidad declarada por hora (nº)
      hourly: [                   // EXACTAMENTE 24 entradas, h:0..23
        { h:0, demanda:9, capacidad:48, complejidad:41 }, ...
      ],
-     sectores: [                 // carga por sector de ATFM
-       { code:'R15', load:41, cap:44 }, ...
-     ],
-     regulaciones: [             // slots / regulaciones de flujo activas
+     sectores: [ { code:'R15', load:41, cap:44 }, ... ],   // carga por sector
+     regulaciones: [                                        // slots / regulaciones
        { ref:'SCEL01', sector:'R15', from:'21:00', to:'22:00',
          rate:30, delay:12, reason:'Capacidad', level:'warn' }, ...
      ]
    }
+
+   El nodo del dep admite DOS formas:
+   (A) MULTI-DÍA (horizonte, p. ej. hoy +3) — lo escribe el Worker diario:
+       {
+         updatedAt: 1721563200000, source:'powerbi-ptw',
+         days: { "2026-07-21": <DÍA>, "2026-07-22": <DÍA>, ... }  // clave = fecha
+       }
+       El Dashboard muestra el día de su selector de fecha (days[fecha]).
+   (B) UN SOLO DÍA (compat / carga manual) — el nodo ES el <DÍA> más
+       {updatedAt, source}. Se usa para cualquier fecha seleccionada.
+
    dep = username del usuario de unidad (p. ej. "ACCS"), = clave del nodo.
+   fecha = "YYYY-MM-DD" (misma que usa el selector del Dashboard, rotToday()).
    ------------------------------------------------------------------ */
 
 // Suscribe al feed ATFM compartido. onAtfm({ <dep>:{...}, ... }). Devuelve limpieza.
@@ -46,9 +56,18 @@ function subscribeAtfm(onAtfm){
   return ()=>{};
 }
 
-// Selecciona el paquete ATFM de una dependencia del mapa suscrito (o null).
-function atfmForDep(atfmMap, dep){
+// Selecciona el paquete ATFM de una dependencia para la fecha del Dashboard.
+// - Nodo MULTI-DÍA (con `days`): devuelve el día pedido (o null → simula ese día).
+// - Nodo de UN SOLO DÍA (compat/manual): lo devuelve para cualquier fecha.
+function atfmForDep(atfmMap, dep, dateStr){
   if(!atfmMap || !dep) return null;
-  const a=atfmMap[dep];
-  return (a && typeof a==='object') ? a : null;
+  const node=atfmMap[dep];
+  if(!node || typeof node!=='object') return null;
+  if(node.days && typeof node.days==='object'){
+    const day = dateStr && node.days[dateStr];
+    if(day && typeof day==='object')
+      return Object.assign({ source:node.source, updatedAt:node.updatedAt }, day);
+    return null;               // hay horizonte pero no ese día → cae a simulado
+  }
+  return node;                 // formato de un solo día (compat)
 }

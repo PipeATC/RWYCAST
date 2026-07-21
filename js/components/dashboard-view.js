@@ -13,7 +13,7 @@ function Dashboard({user,users,atfm}){
     h('div',{className:'phead',style:{borderTop:'none'}},h('h3',null,'Dashboard de decisiones')),
     h('div',{className:'empty'},'No hay dependencia asociada a tu cuenta.'));
 
-  const d=dashboardData(depCode,users,date, atfmForDep(atfm,depCode));
+  const d=dashboardData(depCode,users,date, atfmForDep(atfm,depCode,date));
   const P='var(--phos)',A='var(--amber)',R='var(--red)',SK='var(--sky)',VI='var(--violet)',DIM='var(--ink-faint)';
   const stColor=s=> s==='crit'?R : s==='warn'?A : P;
 

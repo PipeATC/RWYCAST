@@ -1,70 +1,74 @@
-# RWYCAST — ATFM feed (Cloudflare Worker)
+# RWYCAST — ATFM feed (Cloudflare Worker) · SCEL → ACCS, multi-día
 
-Publica datos ATFM reales en Firebase RTDB (`/runcast/atfm/<dependencia>`) para
-que el **Dashboard de decisiones** los muestre en tiempo real. La app los mezcla
-con su propio roster (`dashboardData`); si este Worker no escribe, el Dashboard
-cae limpio a datos simulados. Contrato de datos: `js/services/atfm.js`.
+Publica datos ATFM de **SCEL** en Firebase RTDB para que se vean en el **Dashboard
+de decisiones de ACCS** (el ACC controla el área de SCEL). Actualiza **una vez al
+día** con un **horizonte de 3 días en adelante** (configurable). La app los lee en
+tiempo real; si el Worker no escribe, el Dashboard cae limpio a datos simulados.
+Contrato de datos: `js/services/atfm.js`.
 
-> **Origen hoy:** el reporte público *"Publicar en la web"* de Power BI (ATFM).
-> Al ser publish-to-web (anónimo) **no** necesita Azure AD ni service principal.
+> **Origen:** el reporte público *"Publicar en la web"* de Power BI (SCEL). Al ser
+> publish-to-web (anónimo) **no** necesita Azure AD ni service principal.
 
-## ⚠️ Antes de depender de esto, ten claro
+## Forma que se escribe (nodo multi-día)
 
-- **Va con retardo.** Power BI cachea publish-to-web (~1 h o más). No es tiempo real.
-- **Es frágil.** El endpoint `querydata` no está documentado; Microsoft puede cambiarlo.
-- **Es un reporte ajeno en "fase de prueba".** Puede cambiar de estructura o caerse.
-  Lo robusto a futuro es pedir al dueño (¿DGAC/ATFM?) un **export o API oficial**;
-  ese día solo se cambia este Worker, la app no se toca.
+```json
+/runcast/atfm/ACCS = {
+  "source": "powerbi-ptw",
+  "updatedAt": 1753120800000,
+  "days": {
+    "2026-07-21": { "capacidad": 48, "hourly": [ {"h":0,"demanda":9,"capacidad":48}, … 24 ],
+                    "sectores": [ {"code":"R15","load":41,"cap":44} ],
+                    "regulaciones": [ … ] },
+    "2026-07-22": { … },
+    "2026-07-23": { … },
+    "2026-07-24": { … }
+  }
+}
+```
 
-## Tres formas de alimentar el feed (todas escriben la misma forma)
+El Dashboard muestra el día de su **selector de fecha** (`days[fecha]`). Las claves
+son fecha **local de Chile** (`YYYY-MM-DD`), iguales a `rotToday()`. El PUT reemplaza
+el nodo entero, así los días pasados se purgan solos.
 
-| Ruta | Qué hace | Cuándo usar |
-|------|----------|-------------|
-| `GET /demo` | Escribe un paquete **sintético válido** | Ver el tablero en "ATFM EN VIVO" end-to-end **ya**, sin resolver la captura |
-| `POST /feed?dep=ACCS` | Ingesta **manual**: el cuerpo JSON (en forma de contrato) se valida y escribe | Carga manual, o alimentar desde cualquier script externo |
-| `GET /` | **Replay** de la consulta capturada de Power BI y escribe | Producción, una vez configurada la captura |
+## ⚠️ Antes de depender de esto
 
-### Probar el pipeline en 1 minuto (modo demo)
+- **Va con retardo**: publish-to-web cachea (~1 h). Para un pronóstico diario a 3
+  días es aceptable; para tiempo real, no.
+- **Es frágil**: el endpoint `querydata` no está documentado; Microsoft puede
+  cambiarlo. Lo robusto a futuro: un export/API oficial del dueño (mismo contrato,
+  solo cambia el Worker).
+
+## Verlo YA sin resolver la captura (modo demo)
 
 ```bash
 wrangler deploy
 curl "https://rwycast-atfm.<tu-subdominio>.workers.dev/demo?dep=ACCS"
 ```
 
-Abre el Dashboard: el badge debe pasar a **● ATFM EN VIVO**, la curva y la carga
-por sector reflejan el demo y aparece la tarjeta **Regulaciones ATFM**.
+Escribe días sintéticos hoy..+3 en ACCS. Abre el Dashboard de ACCS: badge **● ATFM
+EN VIVO · DEMO**, y **cambia la fecha** en el selector para ver cada día del
+horizonte. (Borra el demo cuando termines: es una dependencia real — ver abajo.)
 
-## Capturar la consulta de Power BI (para `GET /` real)
+## Capturar la consulta de Power BI (para el feed real)
 
-El enfoque es **capturar una vez y reproducir**: en vez de reversear el flujo de
-descubrimiento de Power BI (frágil), copiamos la petición `querydata` que el
-reporte ya hace y la repetimos en el cron.
+**Debe hacerse en TU navegador** (DevTools Network ve el tráfico que un hook de JS
+no ve — Power BI consulta desde un Web Worker).
 
-1. Abre el reporte publish-to-web en el navegador con **DevTools → Network**.
+1. Abre el reporte publish-to-web de SCEL con **DevTools (F12) → Network**.
 2. Filtra por `querydata`. Navega a la página con los datos que quieres (p. ej.
-   *"Tráfico por Horas"* o *"R15/R05 Demand"*).
+   *"Tráfico por Horas"* / *"R15/R05 Demand"* / *"Análisis ATFM"*).
 3. En la petición `POST .../public/reports/querydata?synchronous=true`:
-   - **Request URL** → guárdala en `PBI_QUERYDATA_URL`.
-   - **Request Headers → `X-PowerBI-ResourceKey`** → guárdalo en `PBI_RESOURCE_KEY`
-     (es el `k` del token `?r=` del enlace, decodificado por Power BI).
-   - **Request Payload** (el JSON completo) → guárdalo en `PBI_QUERY_BODY`.
-4. Mira la **Response**: con su forma real completas `mapPbiToContract()` en
-   `worker.js` (qué columna es la hora, cuál la demanda, la capacidad, el sector…).
+   - **Request URL** → `PBI_QUERYDATA_URL`.
+   - **Header `X-PowerBI-ResourceKey`** → `PBI_RESOURCE_KEY`.
+   - **Request Payload** (JSON completo) → `PBI_QUERY_BODY`.
+4. Mira la **Response** (pestaña Response/Preview) y pásamela: con su forma real
+   completo `mapPbiToDays()` en `worker.js` (qué columna es la fecha, la hora, la
+   demanda, la capacidad, el sector). Ese es el único paso que queda por definir.
 
-Helper para copiar la petición desde la consola de DevTools (pégalo y recarga):
-
-```js
-// Registra en consola la URL y el body de cada querydata (para copiar/pegar).
-(() => {
-  const of = window.fetch;
-  window.fetch = async (...a) => {
-    try { if (String(a[0]).includes('querydata'))
-      console.log('QUERYDATA URL:', a[0], '\nBODY:', a[1] && a[1].body); } catch {}
-    return of(...a);
-  };
-  console.log('Hook listo. Navega por el reporte y mira la consola.');
-})();
-```
+> **Horizonte de 3 días:** idealmente la consulta ya trae varios días (filtro de
+> fecha **relativo**: Hoy … Hoy+3). Si trae fechas fijas, el replay se congelaría;
+> en ese caso hay que reescribir la ventana de fechas en `PBI_QUERY_BODY` por corrida
+> (te ayudo cuando veamos el body real).
 
 Carga los secrets y despliega:
 
@@ -76,53 +80,26 @@ wrangler deploy
 curl "https://rwycast-atfm.<tu-subdominio>.workers.dev/"   # dispara un refresco
 ```
 
-Si `GET /` devuelve `ok:false`, el JSON trae `problems`/`detail` para depurar el
-mapeo o la petición.
-
-## Forma del contrato (`/runcast/atfm/<dep>`)
-
-Todos los campos son **opcionales**; el Dashboard usa lo que llegue y simula el resto.
-
-```json
-{
-  "updatedAt": 1721563200000,
-  "source": "powerbi-ptw",
-  "capacidad": 48,
-  "hourly": [ { "h": 0, "demanda": 9, "capacidad": 48, "complejidad": 41 } ],
-  "sectores": [ { "code": "R15", "load": 41, "cap": 44 } ],
-  "regulaciones": [
-    { "ref": "SCEL01", "sector": "R15", "from": "21:00", "to": "22:00",
-      "rate": 30, "delay": 12, "reason": "Capacidad", "level": "warn" }
-  ]
-}
-```
-
-`dep` = username del usuario de unidad (p. ej. `ACCS`) = clave del nodo en RTDB.
-`hourly` debe traer **exactamente 24** entradas (h 0..23) o se ignora.
+Si `GET /` devuelve `ok:false`, trae `detail`/`problems`/`gotDates` para depurar.
 
 ## Variables
 
 | Nombre | Dónde | Descripción |
 |--------|-------|-------------|
 | `RTDB_URL` | `wrangler.toml` | URL base de la RTDB, sin barra final. |
-| `DEP` | `wrangler.toml` | Dependencia por defecto a la que se escribe. |
-| `PBI_RESOURCE_KEY` | `wrangler secret` | El `k` del token del reporte (`X-PowerBI-ResourceKey`). |
-| `PBI_QUERYDATA_URL` | `wrangler secret` | URL exacta de `querydata` capturada. |
+| `DEP` | `wrangler.toml` | Dependencia destino (`ACCS`). |
+| `HORIZON_DAYS` | `wrangler.toml` | Días en adelante además de hoy (`3`). |
+| `PBI_RESOURCE_KEY` | `wrangler secret` | El `k` del token (`X-PowerBI-ResourceKey`). |
+| `PBI_QUERYDATA_URL` | `wrangler secret` | URL exacta de `querydata`. |
 | `PBI_QUERY_BODY` | `wrangler secret` | Cuerpo JSON exacto de esa petición. |
-| `FEED_KEY` | `wrangler secret` | (Opcional) protege `POST /feed` y `GET /demo` con `?key=`. |
-| `RTDB_SECRET` | `wrangler secret` | (Opcional) database secret de Firebase (escritura con auth). |
+| `FEED_KEY` | `wrangler secret` | (Opcional) protege `/feed` y `/demo` con `?key=`. |
+| `RTDB_SECRET` | `wrangler secret` | (Opcional) database secret de Firebase. |
 
-## Endurecer Firebase (recomendado)
+## Borrar el demo / endurecer Firebase
 
-Igual que el worker de METAR: deja `/runcast/atfm` de solo lectura para el público
-y escritura solo con `auth`, y carga `RTDB_SECRET` en el Worker.
-
-```json
-{
-  "rules": {
-    "runcast": {
-      "atfm": { ".read": true, ".write": "auth != null" }
-    }
-  }
-}
+Borrar el nodo (consola del navegador en la app, o curl):
+```js
+firebase.database().ref('runcast/atfm/ACCS').remove()
 ```
+Reglas recomendadas: `/runcast/atfm` de solo lectura pública y escritura con `auth`
+(carga `RTDB_SECRET` en el Worker), igual que el worker de METAR.
