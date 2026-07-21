@@ -22,11 +22,91 @@ const KeyIcon=()=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor'
   h('circle',{cx:8,cy:15,r:5}),
   h('path',{d:'M11.5 11.5 21 2M17 6l3 3M15.5 7.5l2 2'}));
 
+// Orden personalizado de los módulos de la barra superior (persistido por usuario).
+function navOrderKey(user){ return 'runcast:navorder:'+((user&&user.username)||'anon'); }
+function loadNavOrder(user){ try{ const a=JSON.parse(localStorage.getItem(navOrderKey(user))||'null'); return Array.isArray(a)?a:null; }catch(e){ return null; } }
+function saveNavOrder(user,order){ try{ localStorage.setItem(navOrderKey(user), JSON.stringify(order)); }catch(e){} }
+// Respeta el orden guardado y agrega al final cualquier módulo nuevo o no visto,
+// filtrando los que el rol ya no puede ver (permitidos = fuente de verdad).
+function mergeNavOrder(allowed, saved){
+  if(!saved||!saved.length) return allowed.slice();
+  const kept=saved.filter(k=>allowed.includes(k));
+  const rest=allowed.filter(k=>!kept.includes(k));
+  return kept.concat(rest);
+}
+
 function TopBar({user,users,clock,view,setView,unread,onLogout,onManagePassword}){
-  const tabs=viewsFor(user.role).map(k=>[k,TAB_LABEL[k]]);
   const [menuOpen,setMenuOpen]=useState(false);
   const [theme,setTheme]=useState(()=>document.body.classList.contains('theme-light')?'light':'dark');
+  const [dragKey,setDragKey]=useState(null);            // módulo que se está arrastrando
+  const [arrows,setArrows]=useState({left:false,right:false}); // flechas del deslizador
   const menuRef=useRef(null);
+  const draggedRef=useRef(false);                        // hubo arrastre → no navegar al soltar
+  const scrollRef=useRef(null);
+
+  // Orden de módulos: permitidos por rol, reordenados según preferencia del usuario.
+  const allowed=viewsFor(user.role);
+  const allowedKey=allowed.join('|');
+  const [order,setOrder]=useState(()=>mergeNavOrder(allowed, loadNavOrder(user)));
+  // Re-sincroniza al cambiar de usuario o de módulos permitidos (cambio de rol).
+  useEffect(()=>{ setOrder(mergeNavOrder(viewsFor(user.role), loadNavOrder(user))); },[user.username, allowedKey]);
+
+  // Mueve dragK a la posición de overK y persiste el nuevo orden.
+  const reorder=(dragK,overK)=>setOrder(prev=>{
+    const from=prev.indexOf(dragK), to=prev.indexOf(overK);
+    if(from<0||to<0||from===to) return prev;
+    const next=prev.slice(); next.splice(to,0,next.splice(from,1)[0]);
+    saveNavOrder(user,next); return next;
+  });
+
+  // Muestra/oculta las flechas del deslizador según haya contenido oculto a los lados.
+  const updateArrows=()=>{ const el=scrollRef.current; if(!el) return;
+    const left=el.scrollLeft>2, right=el.scrollLeft < el.scrollWidth-el.clientWidth-2;
+    setArrows(a=>(a.left!==left||a.right!==right)?{left,right}:a); };
+  const scrollStep=dx=>()=>{ const el=scrollRef.current; if(el) el.scrollBy({left:dx,behavior:'smooth'}); };
+  const onWheel=e=>{ const el=scrollRef.current; if(el&&e.deltaY){ el.scrollLeft+=e.deltaY; } };
+
+  useEffect(()=>{ updateArrows();
+    const el=scrollRef.current; if(!el) return;
+    const ro=(typeof ResizeObserver!=='undefined')?new ResizeObserver(updateArrows):null;
+    if(ro) ro.observe(el);
+    window.addEventListener('resize',updateArrows);
+    return ()=>{ if(ro) ro.disconnect(); window.removeEventListener('resize',updateArrows); };
+  },[order.length, allowedKey]);
+
+  // Arrastre con Pointer Events (desktop). Umbral de 6px para distinguir de un clic;
+  // si el puntero pasa sobre otro módulo, reordena en vivo; auto-scroll en los bordes.
+  const startDrag=key=>e=>{
+    if(e.button&&e.button!==0) return;
+    const sx=e.clientX, sy=e.clientY; let dragging=false, lastOver=key;
+    const move=ev=>{
+      if(!dragging){
+        if(Math.abs(ev.clientX-sx)<6 && Math.abs(ev.clientY-sy)<6) return;
+        dragging=true; draggedRef.current=true; setDragKey(key); document.body.classList.add('reordering');
+      }
+      const el=document.elementFromPoint(ev.clientX,ev.clientY);
+      const btn=el&&el.closest&&el.closest('[data-tab]');
+      const over=btn&&btn.getAttribute('data-tab');
+      if(over&&over!==key&&over!==lastOver){ reorder(key,over); lastOver=over; }
+      else if(over===key) lastOver=key;
+      const sc=scrollRef.current;
+      if(sc){ const r=sc.getBoundingClientRect();
+        if(ev.clientX<r.left+36) sc.scrollLeft-=14;
+        else if(ev.clientX>r.right-36) sc.scrollLeft+=14; }
+    };
+    const up=()=>{
+      window.removeEventListener('pointermove',move);
+      window.removeEventListener('pointerup',up);
+      window.removeEventListener('pointercancel',up);
+      if(dragging){ setDragKey(null); document.body.classList.remove('reordering'); updateArrows(); }
+    };
+    window.addEventListener('pointermove',move);
+    window.addEventListener('pointerup',up);
+    window.addEventListener('pointercancel',up);
+  };
+  // Clic real (no arrastre, incl. teclado): navega. Si venía de arrastrar, lo ignora.
+  const navClick=key=>()=>{ if(draggedRef.current){ draggedRef.current=false; return; } setView(key); };
+
   useEffect(()=>{
     if(!menuOpen) return;
     const close=e=>{ if(menuRef.current&&!menuRef.current.contains(e.target)) setMenuOpen(false); };
@@ -40,9 +120,18 @@ function TopBar({user,users,clock,view,setView,unread,onLogout,onManagePassword}
   return h('div',{className:'topbar'},
     h('div',{className:'brand'}, GLYPH, h('div',null,
       h('b',null,'RWYCAST'), h('small',null,'ATC · CHILE'))),
-    h('div',{className:'nav'},
-      tabs.map(([k,l])=>h('button',{key:k,className:view===k?'on':'',onClick:()=>setView(k)},
-        l, (k==='log'&&unread>0)&&h('span',{className:'dot'})))),
+    h('div',{className:'navwrap'},
+      arrows.left && h('button',{type:'button',className:'navarrow left',onClick:scrollStep(-180),
+        title:'Ver módulos anteriores','aria-label':'Desplazar módulos a la izquierda'},'‹'),
+      h('div',{className:'navscroll',ref:scrollRef,onScroll:updateArrows,onWheel:onWheel},
+        h('div',{className:'nav'},
+          order.map(k=>h('button',{key:k,'data-tab':k,
+            className:(view===k?'on':'')+(dragKey===k?' drag':''),
+            title:'Clic para abrir · arrastra para reordenar',
+            onPointerDown:startDrag(k), onClick:navClick(k)},
+            TAB_LABEL[k], (k==='log'&&unread>0)&&h('span',{className:'dot'}))))),
+      arrows.right && h('button',{type:'button',className:'navarrow right',onClick:scrollStep(180),
+        title:'Ver más módulos','aria-label':'Desplazar módulos a la derecha'},'›')),
     h('div',{className:'clock'},
       h('div',{className:'cgrp'},
         h('div',{className:'lbl'},'LOCAL'),
