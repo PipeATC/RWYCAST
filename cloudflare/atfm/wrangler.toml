@@ -14,10 +14,18 @@ RTDB_URL = "https://atcbrief-default-rtdb.firebaseio.com"
 DEP = "ACCS"
 # Horizonte: días en adelante ADEMÁS de hoy (3 → hoy + 3 días = 4 nodos de día).
 HORIZON_DAYS = "3"
+# Aeropuerto/torre tal como aparece en el filtro Dim_Torres del reporte.
+PBI_TORRE = "SCEL"
+# Capacidad DECLARADA de movimientos/hora. Parámetro OPERACIONAL configurable:
+# el reporte solo entrega demanda, no capacidad. Ajústalo al valor real de SCEL.
+DECLARED_CAP = "40"
 
-# --- Secrets (NO van aquí; se cargan con `wrangler secret put <NOMBRE>`) ---
-#   PBI_RESOURCE_KEY   el "k" del token del reporte publish-to-web (ver README).
-#   PBI_QUERYDATA_URL  URL exacta de querydata capturada del reporte SCEL.
-#   PBI_QUERY_BODY     cuerpo JSON exacto de esa petición (como string).
-#   FEED_KEY           (opcional) protege POST /feed y GET /demo.
-#   RTDB_SECRET        (opcional) database secret de Firebase para escritura con auth.
+# El endpoint y el resource key traen valores por defecto (los del enlace público
+# dado), así que el Worker funciona sin secrets. Solo defínelos como override si
+# el reporte cambia de backend o de token:
+#   PBI_RESOURCE_KEY   el "k" del token del reporte publish-to-web.
+#   PBI_QUERYDATA_URL  URL exacta de querydata (backend regional).
+#
+# --- Secrets opcionales (con `wrangler secret put <NOMBRE>`) ---
+#   FEED_KEY    protege POST /feed y GET /demo con ?key=.
+#   RTDB_SECRET database secret de Firebase para escritura con auth.
