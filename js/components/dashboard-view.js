@@ -2,7 +2,7 @@
 // DATOS FICTICIOS por ahora (ver js/services/dashboard.js). Pensado para decidir la
 // asignación de personal a posiciones: picos de demanda vs capacidad, carga por sector,
 // dotación disponible y fatiga por ATC, más recomendaciones derivadas.
-function Dashboard({user,users}){
+function Dashboard({user,users,atfm}){
   const deps=dashDepsFor(user,users);
   const [depCode,setDepCode]=useState(()=> userDep(user)||deps[0]||'');
   const [date,setDate]=useState(()=>rotToday());
@@ -13,7 +13,7 @@ function Dashboard({user,users}){
     h('div',{className:'phead',style:{borderTop:'none'}},h('h3',null,'Dashboard de decisiones')),
     h('div',{className:'empty'},'No hay dependencia asociada a tu cuenta.'));
 
-  const d=dashboardData(depCode,users,date);
+  const d=dashboardData(depCode,users,date, atfmForDep(atfm,depCode));
   const P='var(--phos)',A='var(--amber)',R='var(--red)',SK='var(--sky)',VI='var(--violet)',DIM='var(--ink-faint)';
   const stColor=s=> s==='crit'?R : s==='warn'?A : P;
 
@@ -95,6 +95,19 @@ function Dashboard({user,users}){
       h('span',{className:'dash-reco-ic'}, rc.level==='crit'?'▲':rc.level==='warn'?'!':'✓'),
       h('span',null,rc.text))));
 
+  // ---- regulaciones / slots ATFM (solo si el feed real las entrega) ----
+  const regs=d.regulaciones||[];
+  const regBody=h('div',{className:'dash-regs'},
+    regs.map((g,i)=>h('div',{className:'dash-reg '+(g.level||'warn'),key:i},
+      h('div',{className:'dash-reg-top'},
+        h('span',{className:'dash-reg-ref'}, g.ref||'—'),
+        g.sector&&h('span',{className:'dash-reg-sec'}, g.sector),
+        (g.from||g.to)&&h('span',{className:'dash-reg-win'}, (g.from||'')+(g.to?'–'+g.to:''))),
+      h('div',{className:'dash-reg-bot'},
+        g.rate!=null&&h('span',null,'Rate '+g.rate+'/h'),
+        g.delay!=null&&h('span',{className:'dash-reg-delay'},'Demora '+g.delay+' min'),
+        g.reason&&h('span',{className:'dash-reg-rsn'}, g.reason)))));
+
   // ---- dotación por turno: día (12) vs noche (8) ----
   const shiftBlock=(t)=>{ const T=d.turnos[t], isNow=d.turnos.current===t;
     return h('div',{className:'dash-shift '+t+(isNow?' now':''),key:t},
@@ -160,14 +173,19 @@ function Dashboard({user,users}){
           deps.map(x=>h('option',{key:x,value:x}, depName(x,users)))),
         h('label',{className:'bit-date'}, h('span',null,'FECHA'),
           h('input',{type:'date',value:date,onChange:e=>setDate(e.target.value||rotToday())})),
-        h('span',{className:'dash-sim'},'◆ DATOS SIMULADOS')),
+        (d.atfm.live
+          ? h('span',{className:'dash-sim live',
+              title:d.atfm.updatedAt?('Actualizado '+new Date(d.atfm.updatedAt).toLocaleString('es-CL')):''},
+              '● ATFM EN VIVO'+(d.atfm.source?' · '+String(d.atfm.source).toUpperCase():''))
+          : h('span',{className:'dash-sim'},'◆ DATOS SIMULADOS'))),
       kpis,
       h('div',{className:'dash-grid'},
-        card('Demanda vs capacidad por hora','movimientos/hora',hourlyChart,'wide'),
+        card('Demanda vs capacidad por hora', d.atfm.fields.hourly?'ATFM · mov/hora':'movimientos/hora', hourlyChart,'wide'),
         card('Rotación de turnos', d.turnos.dia.count+' día · '+d.turnos.noche.count+' noche', turnos),
-        card('Carga por sector','ahora',sectBars),
+        card('Carga por sector', d.atfm.fields.sectores?'ATFM · ahora':'ahora', sectBars),
         card('Dotación de turno', dt.total+' ATC', dotacion),
         card('Fatiga por ATC','estimada',fatiga),
+        regs.length ? card('Regulaciones ATFM', regs.length+' activa(s)', regBody,'wide') : null,
         card('Recomendaciones','soporte a la decisión',recos,'wide')),
       h('div',{className:'dash-sec'}, 'Tránsito del aeropuerto',
         h('span',null,'FR24 · SIMULADO · '+fr.icao)),
@@ -177,6 +195,10 @@ function Dashboard({user,users}){
         card('Uso de pistas','últimos 7 días',rwyTable),
         card('FID · '+fr.icao,'llegadas y salidas',fid,'wide')),
       h('div',{className:'dash-note'},
-        'Datos de demostración. La carga y dotación se vincularán con el módulo ATFM (Power BI); '
-        +'las estadísticas de movimientos, uso de pistas y el FID simulan un feed tipo Flightradar24.')));
+        d.atfm.live
+          ? ('Demanda, capacidad y regulaciones vinculadas al módulo ATFM'
+             +(d.atfm.source?' ('+d.atfm.source+')':'')+'. La dotación y la fatiga provienen del roster de la '
+             +'dependencia; las estadísticas de movimientos, uso de pistas y el FID simulan un feed tipo Flightradar24.')
+          : ('Datos de demostración. La carga y dotación se vincularán con el módulo ATFM (Power BI); '
+             +'las estadísticas de movimientos, uso de pistas y el FID simulan un feed tipo Flightradar24.'))));
 }

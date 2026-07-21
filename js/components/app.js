@@ -16,6 +16,7 @@ function App(){
   const [alerts,setAlerts]=useState([]);   // cambios de otras unidades sin acuse
   const [syncMode,setSyncMode]=useState('local');
   const [metars,setMetars]=useState({});   // METAR en vivo desde /runcast/metars
+  const [atfm,setAtfm]=useState({});        // feed ATFM por dependencia desde /runcast/atfm
   const [watch,setWatch]=useState([]);     // watchlist personal (ICAOs) de "Mi jurisdicción"
   const [users,setUsers]=useState({});       // base de usuarios (runcast/users)
   const [editingUser,setEditingUser]=useState(null); // usuario en edición (panel admin)
@@ -41,6 +42,9 @@ function App(){
 
   // suscripción en tiempo real a los METAR (alimentados por GitHub Actions)
   useEffect(()=>subscribeMetars(setMetars),[]);
+
+  // suscripción en tiempo real al feed ATFM (lo escribe el Worker; ver cloudflare/atfm-worker.js)
+  useEffect(()=>subscribeAtfm(setAtfm),[]);
 
   // base de usuarios: siembra el admin inicial y suscribe los cambios
   useEffect(()=>{
@@ -453,7 +457,7 @@ function App(){
           watch,onAddWatch:addWatch,onRemoveWatch:removeWatch,onReorder:reorderWatch}),
         view==='log' && h(LogView,{logs,user}),
         view==='brief' && h(Briefing,{airports,logs,user,metars,users}),
-        view==='dashboard' && canUseDashboard(user) && h(Dashboard,{user,users}),
+        view==='dashboard' && canUseDashboard(user) && h(Dashboard,{user,users,atfm}),
         view==='bitacora' && canUseBitacora(user) && h(Bitacora,{user,users}),
         view==='rotacion' && canUseRotacion(user) && h(Rotacion,{user,users}),
         view==='catalog' && canUseCatalog(user) && h(CatalogAdmin,{airports,user,onSave:commitCatalog,

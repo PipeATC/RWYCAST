@@ -1,0 +1,22 @@
+name = "rwycast-atfm"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# Refresco periódico del feed ATFM. Publish-to-web cachea ~1 h, así que no tiene
+# sentido consultar al minuto: cada 15 min es más que suficiente y es amable con
+# el reporte de origen. Ajusta a gusto.
+[triggers]
+crons = ["*/15 * * * *"]
+
+[vars]
+# URL base de la Realtime Database, SIN barra final.
+RTDB_URL = "https://atcbrief-default-rtdb.firebaseio.com"
+# Dependencia por defecto a la que se escribe (username del usuario de unidad).
+DEP = "ACCS"
+
+# --- Secrets (NO van aquí; se cargan cifrados con `wrangler secret put <NOMBRE>`) ---
+#   PBI_RESOURCE_KEY   el "k" del token del reporte publish-to-web (ver README).
+#   PBI_QUERYDATA_URL  URL exacta de querydata capturada del reporte.
+#   PBI_QUERY_BODY     cuerpo JSON exacto de esa petición (como string).
+#   FEED_KEY           (opcional) protege POST /feed y GET /demo.
+#   RTDB_SECRET        (opcional) database secret de Firebase para escritura con auth.
