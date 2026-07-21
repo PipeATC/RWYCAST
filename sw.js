@@ -9,7 +9,8 @@
      siempre directo a la red para mantener el tiempo real.
    Sube la versión de CACHE al cambiar assets para forzar refresco.
    ============================================================ */
-const CACHE = 'rwycast-v5';
+const CACHE = 'rwycast-v6';
+// Mantener sincronizada con los <script> de index.html (mismo orden).
 const JS_MODULES = [
   './js/core/react-setup.js',
   './js/config/version.js',
@@ -19,7 +20,11 @@ const JS_MODULES = [
   './js/services/firebase.js',
   './js/services/state.js',
   './js/services/metars.js',
+  './js/services/atfm.js',
   './js/services/briefing.js',
+  './js/services/bitacora.js',
+  './js/services/rotacion.js',
+  './js/services/dashboard.js',
   './js/services/users.js',
   './js/auth/rbac.js',
   './js/auth/password.js',
@@ -31,6 +36,9 @@ const JS_MODULES = [
   './js/components/viewer.js',
   './js/components/log.js',
   './js/components/briefing-view.js',
+  './js/components/bitacora-view.js',
+  './js/components/rotacion-view.js',
+  './js/components/dashboard-view.js',
   './js/components/catalog-view.js',
   './js/components/users-view.js',
   './js/main.js',
