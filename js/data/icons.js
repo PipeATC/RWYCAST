@@ -26,6 +26,22 @@ const Ic = {
     h('path',{d:'M20 11a8 8 0 1 0-.9 4M20 5v4h-4'})),
   dash:(p)=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,...p},
     h('path',{d:'M3 3v18h18M7 16v2M11.5 11v7M16 13v5M20.5 7v11'})),
+  // Cuadro de Mando (dashboard gerencial): medidor / gauge
+  gauge:(p)=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,...p},
+    h('path',{d:'M4 20a8 8 0 1 1 16 0M12 20V12M12 12l3.5-3.5'})),
+  // Equipos e instalaciones (módulo): CPU / equipamiento
+  equip:(p)=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,...p},
+    h('rect',{x:7,y:7,width:10,height:10,rx:1}),
+    h('path',{d:'M10 2v3M14 2v3M10 19v3M14 19v3M2 10h3M2 14h3M19 10h3M19 14h3'})),
+  // Categorías de equipamiento
+  radar:(p)=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,...p},
+    h('path',{d:'M12 12 19 5M12 21a9 9 0 1 0-9-9'}),h('path',{d:'M12 12a4 4 0 1 0 4 4'})),
+  radio:(p)=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,...p},
+    h('path',{d:'M12 12v9M8.5 8.5a5 5 0 0 1 7 0M5.7 5.7a9 9 0 0 1 12.6 0'}),h('circle',{cx:12,cy:12,r:1.4})),
+  nav:(p)=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,...p},
+    h('circle',{cx:12,cy:12,r:9}),h('path',{d:'M12 3v3M12 18v3M3 12h3M18 12h3M12 12l4-2'})),
+  facility:(p)=>h('svg',{viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,...p},
+    h('path',{d:'M3 21h18M5 21V8l7-4 7 4v13M9 21v-5h6v5M9 11h.01M15 11h.01'})),
 };
 
 const GLYPH = h('svg',{className:'glyph',viewBox:'0 0 48 48',fill:'none'},

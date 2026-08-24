@@ -17,6 +17,7 @@ function App(){
   const [syncMode,setSyncMode]=useState('local');
   const [metars,setMetars]=useState({});   // METAR en vivo desde /runcast/metars
   const [atfm,setAtfm]=useState({});        // feed ATFM por dependencia desde /runcast/atfm
+  const [equipos,setEquipos]=useState({});  // equipos e instalaciones por aeródromo (/runcast/equipos)
   const [watch,setWatch]=useState([]);     // watchlist personal (ICAOs) de "Mi jurisdicción"
   const [users,setUsers]=useState({});       // base de usuarios (runcast/users)
   const [editingUser,setEditingUser]=useState(null); // usuario en edición (panel admin)
@@ -45,6 +46,9 @@ function App(){
 
   // suscripción en tiempo real al feed ATFM (lo escribe el Worker; ver cloudflare/atfm-worker.js)
   useEffect(()=>subscribeAtfm(setAtfm),[]);
+
+  // suscripción en tiempo real a los equipos e instalaciones de todas las unidades
+  useEffect(()=>{ const sub=subscribeEquipos(setEquipos); return sub.stop; },[]);
 
   // base de usuarios: siembra el admin inicial y suscribe los cambios
   useEffect(()=>{
@@ -300,6 +304,26 @@ function App(){
     return {ok:true};
   }
 
+  // publica el equipamiento y los NOTAM de una unidad aeroportuaria. Revalida el permiso
+  // en el commit (no solo en la UI). admin → cualquier unidad; unit → solo las suyas.
+  async function commitEquipos(icao,{items,notams}){
+    const target=airports.find(a=>a.icao===icao);
+    if(!canEditEquipos(userRef.current,target)){
+      pushToast('warn','ACCESO DENEGADO','Tu rol no permite editar los equipos de '+icao);
+      return {error:'Sin permiso para esta unidad'};
+    }
+    const me=userRef.current;
+    const stamp=(me.role==='unit'?target.owner:me.unit)||ROLE_SHORT[me.role]||'ADMIN';
+    const doc={items:items||[],notams:notams||[],updatedAt:Date.now(),updatedBy:me.name+' · '+stamp};
+    // refleja de inmediato en la UI local (la suscripción confirmará el eco remoto)
+    setEquipos(prev=>({...prev,[icao]:doc}));
+    try{ await saveEquipos(icao,doc); }
+    catch(e){ console.warn('[RWYCAST] commitEquipos falló:',e); return {error:'No se pudo publicar'}; }
+    const nUs=(items||[]).filter(x=>x.estado==='U/S').length;
+    pushToast('ok','EQUIPOS '+icao, (items||[]).length+' equipo(s)'+(nUs?' · '+nUs+' U/S':'')+' — publicado');
+    return {ok:true};
+  }
+
   // autenticación: valida credenciales contra la base de usuarios y, recién
   // autenticado, fija perfil (rol/unidad) y la vista inicial según atribuciones
   async function login(username,password,remember){
@@ -455,9 +479,13 @@ function App(){
         view==='viewer' && h(Viewer,{airports:visible,allAirports:airports,allCount:airports.length,mine:mine.length,changedNow,
           query,setQuery,filter,setFilter,user,onEdit:setEditing,metars,
           watch,onAddWatch:addWatch,onRemoveWatch:removeWatch,onReorder:reorderWatch}),
+        view==='mando' && canUseMando(user) && h(CuadroMando,{airports,user,metars,equipos,
+          watch,onAddWatch:addWatch,onRemoveWatch:removeWatch}),
         view==='log' && h(LogView,{logs,user}),
         view==='brief' && h(Briefing,{airports,logs,user,metars,users}),
         view==='dashboard' && canUseDashboard(user) && h(Dashboard,{user,users,atfm}),
+        view==='equipos' && canUseEquipos(user) && h(Equipos,{airports,user,metars,equipos,
+          onSave:commitEquipos,watch,onAddWatch:addWatch,onRemoveWatch:removeWatch}),
         view==='bitacora' && canUseBitacora(user) && h(Bitacora,{user,users}),
         view==='rotacion' && canUseRotacion(user) && h(Rotacion,{user,users}),
         view==='catalog' && canUseCatalog(user) && h(CatalogAdmin,{airports,user,onSave:commitCatalog,
