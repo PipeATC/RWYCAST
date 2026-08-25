@@ -27,4 +27,9 @@ const EQPATH='runcast/equipos';        // ruta compartida de Equipos en Firebase
 // Power BI server-side y escribe en RTDB → la app se refresca sola por la suscripción.
 // Déjala vacía hasta hacer `wrangler deploy`; pega aquí la URL (p. ej. https://rwycast-atfm.<tu-subdominio>.workers.dev).
 const ATFM_WORKER_URL='';
+// Enlace público del reporte ATFM en Power BI (publish-to-web). Se usa como
+// RESPALDO mientras el Worker no esté desplegado: el botón del Dashboard abre este
+// reporte en una pestaña nueva (el navegador no puede volcar los datos al tablero
+// sin el Worker por CORS). En cuanto ATFM_WORKER_URL tenga valor, manda el Worker.
+const ATFM_POWERBI_URL='https://app.powerbi.com/view?r=eyJrIjoiMjdmMWIxMzYtNGNlYi00OTI0LWIyNTgtYmVjMWU1MTE0ODEzIiwidCI6IjE1MTgwNzE4LTQ0Y2YtNDc0OC1iM2M5LTA0NTgxNGIwMGRkNyJ9';
 const SESSION_KEY='runcast:session';   // sesión recordada ("mantener sesión iniciada")
