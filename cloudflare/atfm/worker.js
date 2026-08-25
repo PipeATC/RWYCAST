@@ -16,8 +16,9 @@
  * anónimo, sin Azure AD). La consulta `querydata` del panel "Tráfico por Horas"
  * se CAPTURÓ una vez (ver captured-query.md) y aquí se RECONSTRUYE por fecha:
  * para cada día del horizonte se reescriben los filtros Dia/Mês/Ano y se pide al
- * endpoint. La medida es `Qtd T_Proy2` (movimientos PROYECTADOS), por eso las
- * fechas futuras devuelven datos (tráfico programado por temporada IATA).
+ * endpoint. La medida es `Qtd T_Proy` (movimientos PROYECTADOS; antes `Qtd T_Proy2`,
+ * renombrada en el reporte), por eso las fechas futuras devuelven datos (tráfico
+ * programado por temporada IATA). Override con env PBI_MEASURE si vuelve a cambiar.
  *
  *   ⚠️ Publish-to-web va con RETARDO (caché ~1 h) y el endpoint no está
  *   documentado. Para un pronóstico diario a 3 días es aceptable; para producción
@@ -63,6 +64,10 @@ const DEFAULTS = {
   // Temporadas IATA incluidas en el filtro del reporte.
   SEASONS: ['S24', 'S25', 'S26', 'W23', 'W24', 'W25'],
   DECLARED_CAP: 40, // mov/h declarados para SCEL — parámetro operacional, NO de PBI.
+  // Medida de movimientos PROYECTADOS (ARR+DEP). La original 'Qtd T_Proy2' fue
+  // renombrada en el reporte; la vigente es 'Qtd T_Proy' (verificado ~483 mov/día
+  // en SCEL). Si vuelve a cambiar, actualízala aquí o vía env PBI_MEASURE.
+  MEASURE: 'Qtd T_Proy',
 };
 const MESES_PT = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
@@ -140,7 +145,7 @@ async function refreshFromPbi(env) {
 
 // Ejecuta la consulta "Tráfico por Horas" para una fecha concreta.
 async function queryPbi(env, y, m, d) {
-  const body = buildBody(torre(env), y, m, d);
+  const body = buildBody(torre(env), y, m, d, env.PBI_MEASURE || DEFAULTS.MEASURE);
   const resp = await fetch(queryUrl(env), {
     method: 'POST',
     headers: {
@@ -160,7 +165,7 @@ async function queryPbi(env, y, m, d) {
 /* Reconstruye el cuerpo `querydata` del panel "Tráfico por Horas" filtrado a una
  * fecha. Fiel a la captura (captured-query.md); solo cambian Dia/Mês/Ano y Torre.
  * CacheKey se regenera como JSON de los Commands (probado: el endpoint lo acepta). */
-function buildBody(torreVal, y, m, d) {
+function buildBody(torreVal, y, m, d, measure) {
   const col = (src, prop) => ({ Column: { Expression: { SourceRef: { Source: src } }, Property: prop } });
   const lit = (v) => ({ Literal: { Value: v } });
   const inCond = (exprs, values) => ({ Condition: { In: { Expressions: exprs, Values: values } } });
@@ -184,7 +189,7 @@ function buildBody(torreVal, y, m, d) {
     Select: [
       { Column: { Expression: { SourceRef: { Source: 'd' } }, Property: 'Operacao' }, Name: 'Dim_Oper.Operacao', NativeReferenceName: 'Operacao' },
       { Column: { Expression: { SourceRef: { Source: 'd1' } }, Property: 'Hora' }, Name: 'Dim_Hora.Hora', NativeReferenceName: 'Hora' },
-      { Measure: { Expression: { SourceRef: { Source: '#' } }, Property: 'Qtd T_Proy2' }, Name: '#Metricas.Qtd T_Proy2', NativeReferenceName: 'Qtd T_Proy2' },
+      { Measure: { Expression: { SourceRef: { Source: '#' } }, Property: measure }, Name: '#Metricas.' + measure, NativeReferenceName: measure },
     ],
     Where: [
       inCond([col('d', 'Operacao')], [[lit("'DEP'")], [lit("'ARR'")]]),

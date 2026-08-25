@@ -48,12 +48,13 @@ function declaredCap() { const n = parseInt(env.DECLARED_CAP, 10); return Number
 function torre() { return env.PBI_TORRE || 'SCEL'; }
 function resourceKey() { return env.PBI_RESOURCE_KEY || DEFAULTS.RESOURCE_KEY; }
 function queryUrl() { return env.PBI_QUERYDATA_URL || DEFAULTS.QUERYDATA_URL; }
-// Medida de movimientos PROYECTADOS. La original 'Qtd T_Proy2' fue renombrada en
-// el reporte; se prueban las candidatas de #Metricas hasta dar con una que mapee.
-// Override fijo con PBI_MEASURE. Orden: total proyectado primero.
+// Medida de movimientos PROYECTADOS (ARR+DEP). La original 'Qtd T_Proy2' fue
+// renombrada; la actual es 'Qtd T_Proy' (verificado: ~483 mov/día en SCEL, calza
+// con la referencia; 'Qtd T_Proy3' da ~mitad). Se dejan candidatas por si vuelve a
+// cambiar: se prueban en orden hasta que una mapee. Override fijo con PBI_MEASURE.
 function measureCandidates() {
   if (env.PBI_MEASURE) return [env.PBI_MEASURE];
-  return ['Qtd T_Proy', 'Qtd T_Proy3', 'Qtd T_Proy2'];
+  return ['Qtd T_Proy', 'Qtd T_Proy3'];
 }
 const sumHourly = (hourly) => hourly.reduce((a, x) => a + (x.demanda || 0), 0);
 
@@ -100,32 +101,31 @@ async function refreshFromPbi() {
   return { ok: true, mode: 'powerbi', dep, torre: torre(), measure, wroteDays: Object.keys(days), errors: errors.length ? errors : undefined };
 }
 
-/* Prueba las medidas candidatas contra un día y devuelve la 1ª que mapea. Imprime
- * la suma diaria de CADA candidata (para verificar magnitud vs. la referencia
- * conocida de SCEL ~430-480 mov/día) y, ante fallo total, vuelca el diagnóstico. */
+/* Prueba las medidas candidatas contra un día y devuelve la 1ª que mapea (corta
+ * ahí). Solo si NINGUNA mapea vuelca el diagnóstico (error embebido + esquema del
+ * modelo) para identificar el nuevo nombre. Imprime la suma diaria de la elegida
+ * como verificación de magnitud (referencia SCEL ~430-480 mov/día). */
 async function pickMeasure(p, cap, errors) {
   const cands = measureCandidates();
-  let chosen = null;
-  let dumped = false;
+  let lastRaw = null;
   for (const m of cands) {
     try {
       const raw = await queryPbi(p.y, p.m, p.d, m);
       const hourly = mapPbiToHourly(raw, cap);
       if (hourly) {
-        console.error(`· medida '${m}' → mapea. Suma ${p.iso}: ${sumHourly(hourly)} mov`);
-        if (!chosen) chosen = m; // la 1ª que mapea (orden = preferencia)
-      } else {
-        console.error(`· medida '${m}' → 200 sin datos mapeables`);
-        if (!dumped) { dumped = true; await dumpRaw(`${p.iso}/${m}`, raw); }
+        console.error(`✔ Medida '${m}' → OK. Suma ${p.iso}: ${sumHourly(hourly)} mov (override con PBI_MEASURE).`);
+        return m;
       }
+      console.error(`· medida '${m}' → 200 sin datos mapeables`);
+      lastRaw = raw;
     } catch (e) {
       const msg = String((e && e.message) || e);
       console.error(`· medida '${m}' → error: ${msg.slice(0, 160)}`);
       errors.push(`pickMeasure ${m}: ${msg}`);
     }
   }
-  if (chosen) console.error(`✔ Medida elegida: '${chosen}' (override con PBI_MEASURE si prefieres otra).`);
-  return chosen;
+  if (lastRaw) await dumpRaw(`${p.iso}/medidas`, lastRaw); // ninguna mapeó → diagnóstico
+  return null;
 }
 
 /* Diagnóstico: cuando una respuesta 200 no mapea, imprime pistas de POR QUÉ para
