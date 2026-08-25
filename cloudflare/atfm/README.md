@@ -48,6 +48,19 @@ El Dashboard muestra el día de su **selector de fecha** (`days[fecha]`). Las cl
 son fecha **local de Chile** (`YYYY-MM-DD`), iguales a `rotToday()`. El PUT reemplaza
 el nodo entero, así los días pasados se purgan solos.
 
+## Alternativa sin Cloudflare (GitHub Actions)
+
+Si no quieres/puedes desplegar Cloudflare, hay un equivalente que corre en
+**GitHub Actions** con la misma lógica de scrape y **sin cuentas nuevas**:
+
+- Script: `.github/scripts/atfm-refresh.mjs` (port en Node de este Worker).
+- Workflow: `.github/workflows/atfm.yml` (cron `10 9 * * *` + `Run workflow` manual).
+
+Escribe el mismo nodo `/runcast/atfm/ACCS`, así el Dashboard se refresca solo cada
+día. **Diferencia:** al ser cron no hay endpoint HTTP, por lo que el **botón** del
+Dashboard no puede dispararlo en vivo (queda como "abrir Power BI"). Para el gatillo
+por botón en tiempo real, usa este Worker.
+
 ## Desplegar
 
 El Worker es **autocontenido**: el endpoint y el resource key traen por defecto
