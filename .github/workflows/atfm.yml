@@ -1,0 +1,61 @@
+name: ATFM refresh
+
+# Escrapea el reporte público "Publicar en la web" de Power BI (panel "Tráfico por
+# Horas") y publica la demanda horaria de SCEL en Firebase RTDB (/runcast/atfm/ACCS).
+# La app RWYCAST la lee en tiempo real (Dashboard de decisiones de ACCS). Se corre
+# del lado servidor porque el navegador no puede consultar Power BI directo (CORS).
+#
+# Es el equivalente sin Cloudflare del Worker cloudflare/atfm/worker.js. La lógica
+# de scrape vive en .github/scripts/atfm-refresh.mjs (misma consulta capturada).
+#
+# NOTA: por CRON no hay gatillo "en vivo" desde el botón del Dashboard; el dato se
+# refresca una vez al día (y a mano desde la pestaña Actions con "Run workflow").
+# Para el botón en vivo, desplegar el Cloudflare Worker.
+
+on:
+  schedule:
+    # 09:10 UTC ≈ 05:10/06:10 en Chile (madrugada): el pronóstico del día ya está
+    # disponible y publish-to-web ya refrescó su caché (~1 h de retardo). Ajusta a gusto.
+    - cron: '10 9 * * *'
+  workflow_dispatch:          # permite ejecutarlo a mano desde la pestaña Actions
+  push:
+    paths:
+      - '.github/workflows/atfm.yml'
+      - '.github/scripts/atfm-refresh.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: atfm-refresh
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    if: github.repository == 'PipeATC/RWYCAST'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Escrapear Power BI y publicar en Firebase RTDB
+        env:
+          # URL base de la Realtime Database, SIN barra final.
+          RTDB_URL: https://atcbrief-default-rtdb.firebaseio.com
+          # Dependencia destino: los datos de SCEL se muestran en el Dashboard de ACCS.
+          DEP: ACCS
+          # Horizonte: días en adelante ADEMÁS de hoy (3 → hoy + 3 días).
+          HORIZON_DAYS: '3'
+          # Aeropuerto/torre tal como aparece en el filtro Dim_Torres del reporte.
+          PBI_TORRE: SCEL
+          # Capacidad DECLARADA mov/h (parámetro OPERACIONAL; el reporte no la entrega).
+          DECLARED_CAP: '40'
+          # (Opcional) database secret de Firebase, si endureces las reglas de la RTDB
+          # a escritura con auth. Config en repo → Settings → Secrets → Actions.
+          RTDB_SECRET: ${{ secrets.RTDB_SECRET }}
+        run: node .github/scripts/atfm-refresh.mjs
