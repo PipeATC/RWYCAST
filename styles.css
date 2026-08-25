@@ -576,10 +576,16 @@
     .apgrid{grid-template-columns:1fr}
     .opfields{grid-template-columns:1fr 1fr 1fr}
     .content{padding-bottom:58px}
+    /* Con muchos módulos los botones no caben; en lugar de comprimirlos hasta que
+       se monten entre sí, la barra se desliza horizontalmente y cada botón conserva
+       un ancho mínimo legible. Si sobran pocos módulos, crecen para llenar el ancho. */
     .mtab{display:flex;position:fixed;bottom:0;left:0;right:0;height:56px;z-index:60;
-      background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
-    .mtab button{flex:1;background:none;border:none;color:var(--ink-faint);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;cursor:pointer;position:relative}
-    .mtab button svg{width:18px;height:18px}
+      background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);
+      overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;
+      scrollbar-width:none;-ms-overflow-style:none;overscroll-behavior-x:contain}
+    .mtab::-webkit-scrollbar{display:none}
+    .mtab button{flex:1 0 74px;min-width:74px;background:none;border:none;color:var(--ink-faint);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;cursor:pointer;position:relative;padding:0 6px;text-align:center;line-height:1.2}
+    .mtab button svg{width:18px;height:18px;flex:0 0 auto}
     .mtab button.on{color:var(--phos)}
     .mtab button .dot{position:absolute;top:8px;right:50%;margin-right:-16px;width:6px;height:6px;border-radius:50%;background:var(--amber);box-shadow:0 0 6px var(--amber)}
     .drawer{width:100%}
