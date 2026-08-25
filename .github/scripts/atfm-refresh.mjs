@@ -133,52 +133,49 @@ async function dumpRaw(iso, raw) {
 async function probeMeasures() {
   const backend = queryUrl().replace(/\/public\/reports\/.*$/, '');
   const url = `${backend}/public/reports/conceptualschema`;
-  const bodies = [
-    { modelIds: [DEFAULTS.MODEL_ID], userPreferredLocale: 'en-US' },
-    { models: [DEFAULTS.MODEL_ID], userPreferredLocale: 'en-US' },
-  ];
-  for (const body of bodies) {
-    try {
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json;charset=UTF-8',
-          'X-PowerBI-ResourceKey': resourceKey(),
-          'ActivityId': crypto.randomUUID(), 'RequestId': crypto.randomUUID(),
-        },
-        body: JSON.stringify(body),
-      });
-      const text = await resp.text();
-      console.error(`  · conceptualschema (${Object.keys(body)[0]}) → HTTP ${resp.status}, ${text.length} bytes`);
-      if (!resp.ok) { console.error('    ' + text.slice(0, 300)); continue; }
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json;charset=UTF-8',
+        'X-PowerBI-ResourceKey': resourceKey(),
+        'ActivityId': crypto.randomUUID(), 'RequestId': crypto.randomUUID(),
+      },
+      body: JSON.stringify({ modelIds: [DEFAULTS.MODEL_ID], userPreferredLocale: 'en-US' }),
+    });
+    const text = await resp.text();
+    console.error(`  · conceptualschema → HTTP ${resp.status}, ${text.length} bytes`);
+    if (!resp.ok) { console.error('    ' + text.slice(0, 300)); return; }
 
-      // Recorre el JSON buscando entidades con sus medidas (claves varían de caja).
-      let schema; try { schema = JSON.parse(text); } catch (_) { console.error('    (no es JSON)'); continue; }
-      const found = [];
-      (function walk(node) {
-        if (!node || typeof node !== 'object') return;
-        const entName = node.Name || node.name;
-        const meas = node.Measures || node.measures;
-        if (entName && Array.isArray(meas)) {
-          for (const mm of meas) { const mn = mm && (mm.Name || mm.name); if (mn) found.push(`${entName}[${mn}]`); }
+    let schema; try { schema = JSON.parse(text); } catch (_) { console.error('    (no es JSON)'); return; }
+
+    // En este esquema, una MEDIDA es una Property que trae un objeto `Measure`
+    // (las columnas traen `Column`). Recorremos toda entidad (objeto con Name +
+    // Properties[]) y recogemos "Entidad[Medida]".
+    const found = [];
+    (function walk(node) {
+      if (!node || typeof node !== 'object') return;
+      const entName = node.Name || node.name;
+      const props = node.Properties || node.properties;
+      if (entName && Array.isArray(props)) {
+        for (const pr of props) {
+          if (pr && (pr.Measure || pr.measure)) { const mn = pr.Name || pr.name; if (mn) found.push(`${entName}[${mn}]`); }
         }
-        for (const k in node) walk(node[k]);
-      })(schema);
-
-      if (found.length) {
-        const proy = found.filter((f) => /proy|proj|prev|estim|program|forecast/i.test(f));
-        const metricas = found.filter((f) => /^#?Metricas/i.test(f));
-        console.error('    ► Medidas que parecen de PROYECCIÓN (candidatas a reemplazar Qtd T_Proy2):');
-        console.error('      ' + (proy.length ? proy.join('\n      ') : '(ninguna coincidió con proy/proj/prev/estim/program)'));
-        console.error('    ► Todas las medidas de #Metricas:');
-        console.error('      ' + (metricas.length ? metricas.join('\n      ') : '(no se hallaron medidas bajo #Metricas)'));
-        console.error(`    ► Total de medidas descubiertas en el modelo: ${found.length}`);
-        return;
       }
-      console.error('    (No se hallaron medidas en el esquema; volcado parcial): ' + text.slice(0, 600));
-    } catch (e) {
-      console.error('  · conceptualschema falló:', (e && e.message) || e);
-    }
+      for (const k in node) { const v = node[k]; if (v && typeof v === 'object') walk(v); }
+    })(schema);
+
+    if (!found.length) { console.error('    (No se hallaron medidas; volcado parcial): ' + text.slice(0, 800)); return; }
+
+    const proy = found.filter((f) => /proy|proj|prev|estim|program|forecast|prog/i.test(f));
+    const metricas = found.filter((f) => /Metricas/i.test(f));
+    console.error(`    ► Total de medidas en el modelo: ${found.length}`);
+    console.error('    ► Medidas que parecen de PROYECCIÓN (candidatas a reemplazar Qtd T_Proy2):');
+    console.error('      ' + (proy.length ? proy.join('\n      ') : '(ninguna coincidió)'));
+    console.error('    ► Todas las medidas de #Metricas:');
+    console.error('      ' + (metricas.length ? metricas.join('\n      ') : '(ninguna bajo #Metricas)'));
+  } catch (e) {
+    console.error('  · conceptualschema falló:', (e && e.message) || e);
   }
 }
 
