@@ -149,6 +149,7 @@ function dashDepsFor(user,users){
    funciona con ATFM completo, parcial (p. ej. solo horario) o ausente. */
 function dashNum(v){ v=Number(v); return Number.isFinite(v)?v:null; }
 // Curva horaria (24) desde ATFM. Deriva complejidad de la carga si no viene.
+// Conserva los desgloses arr/dep y comerciales/noComerciales si el feed los trae.
 function dashAtfmHourly(A, cap){
   if(!A || !Array.isArray(A.hourly) || A.hourly.length!==24) return null;
   return A.hourly.map((x,h)=>{
@@ -156,7 +157,38 @@ function dashAtfmHourly(A, cap){
     const capH=Math.max(1, Math.round(dashNum(x&&x.capacidad)||cap));
     const cx=dashNum(x&&x.complejidad);
     const complejidad=cx!=null?Math.round(cx):Math.round(45+Math.min(1,demanda/capH)*50);
-    return { h, demanda, capacidad:capH, complejidad };
+    const o={ h, demanda, capacidad:capH, complejidad };
+    const arr=dashNum(x&&x.arr), dep=dashNum(x&&x.dep);
+    if(arr!=null) o.arr=Math.max(0,Math.round(arr));
+    if(dep!=null) o.dep=Math.max(0,Math.round(dep));
+    const com=dashNum(x&&x.comerciales), nc=dashNum(x&&x.noComerciales);
+    if(com!=null) o.comerciales=Math.max(0,Math.round(com));
+    if(nc!=null) o.noComerciales=Math.max(0,Math.round(nc));
+    return o;
+  });
+}
+// Desglose ARR/DEP de una demanda horaria (reparte ~50/50 con leve sesgo determinista).
+function dashSplitArrDep(r, demanda){
+  const frac=0.46+r()*0.08;                 // 46–54 % llegadas
+  const arr=Math.round(demanda*frac);
+  return { arr, dep:Math.max(0, demanda-arr) };
+}
+// Desglose Comercial / No Comercial (la mayoría comercial; una fracción menor no comercial).
+function dashSplitComercial(r, demanda){
+  if(demanda<=0) return { comerciales:0, noComerciales:0 };
+  const nc = demanda<=5 ? (r()<0.5?0:1) : Math.max(1, Math.round(demanda*(0.03+r()*0.05)));
+  return { comerciales:Math.max(0, demanda-nc), noComerciales:Math.min(demanda,nc) };
+}
+// Garantiza que cada entrada horaria tenga arr/dep y comerciales/noComerciales,
+// derivándolos de `demanda` cuando el origen (ATFM o mock) no los entregó.
+function dashEnrichHourly(hourly, r){
+  return hourly.map(x=>{
+    const demanda=Math.max(0, dashNum(x.demanda)||0);
+    let arr=dashNum(x.arr), dep=dashNum(x.dep);
+    if(arr==null||dep==null){ const s=dashSplitArrDep(r,demanda); arr=s.arr; dep=s.dep; }
+    let com=dashNum(x.comerciales), nc=dashNum(x.noComerciales);
+    if(com==null||nc==null){ const s=dashSplitComercial(r,demanda); com=s.comerciales; nc=s.noComerciales; }
+    return Object.assign({}, x, { arr, dep, comerciales:com, noComerciales:nc });
   });
 }
 // Carga por sector desde ATFM (con ratio/estado calculados).
@@ -187,12 +219,17 @@ function dashboardData(dep,users,dateStr,atfm){
   const A=(atfm&&typeof atfm==='object')?atfm:null;
   // capacidad declarada: ATFM manda si la entrega; si no, mock (48).
   const capacidad=(A&&dashNum(A.capacidad)>0)?Math.round(A.capacidad):48;
+  // capacidad declarada por operación (llegadas / salidas). ATFM manda; si no, ~52/48.
+  const capArr=(A&&dashNum(A.capArr)>0)?Math.round(A.capArr):Math.round(capacidad*0.52);
+  const capDep=(A&&dashNum(A.capDep)>0)?Math.round(A.capDep):Math.max(1,capacidad-Math.round(capacidad*0.52));
   // curva horaria: real de ATFM si viene con 24 puntos; si no, mock determinista.
   const realHourly=dashAtfmHourly(A,capacidad);
-  const hourly=realHourly || DASH_SHAPE.map((base,h)=>({
+  const baseHourly=realHourly || DASH_SHAPE.map((base,h)=>({
     h, demanda:dashJit(r,base,0.14),
     capacidad, complejidad:Math.round(40+r()*55)   // índice de complejidad 40-95
   }));
+  // asegura arr/dep y comerciales/noComerciales en cada hora (real o derivado).
+  const hourly=dashEnrichHourly(baseHourly, r);
   const curDem=hourly[nowH].demanda, nextDem=hourly[(nowH+1)%24].demanda;
   const ratio=curDem/capacidad;
 
@@ -256,6 +293,7 @@ function dashboardData(dep,users,dateStr,atfm){
       sectoresAbiertos:{open:sectNames.length, total:sectNames.length},
       complejidad:{value:hourly[nowH].complejidad},
     },
+    capacidad, capArr, capDep,
     hourly, sectores, dotacion:{enPos,relevo,disponible,ausente,total}, atcs, recomendaciones:rec,
     turnos:{ current:shift,
       dia:{count:dayRoster.length, atcs:dayRoster},
