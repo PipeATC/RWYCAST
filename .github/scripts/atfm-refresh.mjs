@@ -73,7 +73,7 @@ async function refreshFromPbi() {
       const hourly = mapPbiToHourly(raw, cap);
       if (!hourly) {
         errors.push(`${p.iso}: respuesta sin 24 horas`);
-        if (!dumped) { dumped = true; dumpRaw(p.iso, raw); }
+        if (!dumped) { dumped = true; await dumpRaw(p.iso, raw); }
         continue;
       }
       const cs = capSplit(cap);
@@ -92,12 +92,20 @@ async function refreshFromPbi() {
 
 /* Diagnóstico: cuando una respuesta 200 no mapea, imprime pistas de POR QUÉ para
  * poder ajustar buildBody()/mapPbiToHourly() sin adivinar. Se llama una sola vez. */
-function dumpRaw(iso, raw) {
+async function dumpRaw(iso, raw) {
   console.error(`\n===== DIAGNÓSTICO ATFM (${iso}) — Power BI respondió 200 pero no se pudo mapear =====`);
+  let rawStr; try { rawStr = JSON.stringify(raw); } catch (_) { rawStr = String(raw); }
   try {
     // ¿Error semántico embebido? (dataset/report/modelo/tabla cambiaron al republicar)
     const err = raw && (raw.error || (raw.results && raw.results[0] && raw.results[0].result && raw.results[0].result.error));
     if (err) console.error('· Error embebido de Power BI:', JSON.stringify(err).slice(0, 800));
+
+    // Caso conocido: la MEDIDA fue renombrada/eliminada. Descubrimos las medidas
+    // reales del modelo y las imprimimos para poder actualizar `Qtd T_Proy2`.
+    if (/CouldNotResolve|invalid Measure reference|Could not resolve model references/i.test(rawStr || '')) {
+      console.error('\n· Parece que la MEDIDA cambió de nombre. Descubriendo medidas del modelo…');
+      await probeMeasures();
+    }
 
     const ds = raw && raw.results && raw.results[0] && raw.results[0].result && raw.results[0].result.data && raw.results[0].result.data.dsr && raw.results[0].result.data.dsr.DS && raw.results[0].result.data.dsr.DS[0];
     if (!ds) {
@@ -114,9 +122,64 @@ function dumpRaw(iso, raw) {
     console.error('· No se pudo analizar la respuesta:', (e && e.message) || e);
   }
   // Volcado crudo truncado para inspección manual (los IDs viven en ApplicationContext del request, no aquí).
-  let s; try { s = JSON.stringify(raw); } catch (_) { s = String(raw); }
-  console.error('· Respuesta cruda (primeros 2500 chars):\n' + (s || '').slice(0, 2500));
+  console.error('· Respuesta cruda (primeros 2500 chars):\n' + (rawStr || '').slice(0, 2500));
   console.error('===== FIN DIAGNÓSTICO =====\n');
+}
+
+/* Descubre las MEDIDAS reales del modelo publish-to-web vía `conceptualschema` y
+ * las imprime, resaltando las que parezcan de proyección (para reemplazar
+ * `Qtd T_Proy2`). Prueba dos formas de cuerpo (el nombre del campo ha variado
+ * entre versiones del backend). No lanza: es solo diagnóstico. */
+async function probeMeasures() {
+  const backend = queryUrl().replace(/\/public\/reports\/.*$/, '');
+  const url = `${backend}/public/reports/conceptualschema`;
+  const bodies = [
+    { modelIds: [DEFAULTS.MODEL_ID], userPreferredLocale: 'en-US' },
+    { models: [DEFAULTS.MODEL_ID], userPreferredLocale: 'en-US' },
+  ];
+  for (const body of bodies) {
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json;charset=UTF-8',
+          'X-PowerBI-ResourceKey': resourceKey(),
+          'ActivityId': crypto.randomUUID(), 'RequestId': crypto.randomUUID(),
+        },
+        body: JSON.stringify(body),
+      });
+      const text = await resp.text();
+      console.error(`  · conceptualschema (${Object.keys(body)[0]}) → HTTP ${resp.status}, ${text.length} bytes`);
+      if (!resp.ok) { console.error('    ' + text.slice(0, 300)); continue; }
+
+      // Recorre el JSON buscando entidades con sus medidas (claves varían de caja).
+      let schema; try { schema = JSON.parse(text); } catch (_) { console.error('    (no es JSON)'); continue; }
+      const found = [];
+      (function walk(node) {
+        if (!node || typeof node !== 'object') return;
+        const entName = node.Name || node.name;
+        const meas = node.Measures || node.measures;
+        if (entName && Array.isArray(meas)) {
+          for (const mm of meas) { const mn = mm && (mm.Name || mm.name); if (mn) found.push(`${entName}[${mn}]`); }
+        }
+        for (const k in node) walk(node[k]);
+      })(schema);
+
+      if (found.length) {
+        const proy = found.filter((f) => /proy|proj|prev|estim|program|forecast/i.test(f));
+        const metricas = found.filter((f) => /^#?Metricas/i.test(f));
+        console.error('    ► Medidas que parecen de PROYECCIÓN (candidatas a reemplazar Qtd T_Proy2):');
+        console.error('      ' + (proy.length ? proy.join('\n      ') : '(ninguna coincidió con proy/proj/prev/estim/program)'));
+        console.error('    ► Todas las medidas de #Metricas:');
+        console.error('      ' + (metricas.length ? metricas.join('\n      ') : '(no se hallaron medidas bajo #Metricas)'));
+        console.error(`    ► Total de medidas descubiertas en el modelo: ${found.length}`);
+        return;
+      }
+      console.error('    (No se hallaron medidas en el esquema; volcado parcial): ' + text.slice(0, 600));
+    } catch (e) {
+      console.error('  · conceptualschema falló:', (e && e.message) || e);
+    }
+  }
 }
 
 // Ejecuta la consulta "Tráfico por Horas" para una fecha concreta.
