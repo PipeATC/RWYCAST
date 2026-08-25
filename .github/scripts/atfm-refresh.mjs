@@ -66,11 +66,16 @@ async function refreshFromPbi() {
   const wanted = horizonParts();
   const days = {};
   const errors = [];
+  let dumped = false; // volcado de diagnóstico: solo la 1ª respuesta que no mapea.
   for (const p of wanted) {
     try {
       const raw = await queryPbi(p.y, p.m, p.d);
       const hourly = mapPbiToHourly(raw, cap);
-      if (!hourly) { errors.push(`${p.iso}: respuesta sin 24 horas`); continue; }
+      if (!hourly) {
+        errors.push(`${p.iso}: respuesta sin 24 horas`);
+        if (!dumped) { dumped = true; dumpRaw(p.iso, raw); }
+        continue;
+      }
       const cs = capSplit(cap);
       days[p.iso] = { capacidad: cap, capArr: cs.capArr, capDep: cs.capDep, hourly };
     } catch (e) {
@@ -83,6 +88,35 @@ async function refreshFromPbi() {
   const node = { source: 'powerbi-ptw-gha', updatedAt: Date.now(), days };
   await writeNode(dep, node);
   return { ok: true, mode: 'powerbi', dep, torre: torre(), wroteDays: Object.keys(days), errors: errors.length ? errors : undefined };
+}
+
+/* Diagnóstico: cuando una respuesta 200 no mapea, imprime pistas de POR QUÉ para
+ * poder ajustar buildBody()/mapPbiToHourly() sin adivinar. Se llama una sola vez. */
+function dumpRaw(iso, raw) {
+  console.error(`\n===== DIAGNÓSTICO ATFM (${iso}) — Power BI respondió 200 pero no se pudo mapear =====`);
+  try {
+    // ¿Error semántico embebido? (dataset/report/modelo/tabla cambiaron al republicar)
+    const err = raw && (raw.error || (raw.results && raw.results[0] && raw.results[0].result && raw.results[0].result.error));
+    if (err) console.error('· Error embebido de Power BI:', JSON.stringify(err).slice(0, 800));
+
+    const ds = raw && raw.results && raw.results[0] && raw.results[0].result && raw.results[0].result.data && raw.results[0].result.data.dsr && raw.results[0].result.data.dsr.DS && raw.results[0].result.data.dsr.DS[0];
+    if (!ds) {
+      console.error('· No existe results[0].result.data.dsr.DS[0] → estructura distinta o error (ver arriba).');
+    } else {
+      const ops = (ds.SH && ds.SH[0] && ds.SH[0].DM1) ? ds.SH[0].DM1.map((o) => o && o.G1) : null;
+      const dm0 = (ds.PH && ds.PH[0] && ds.PH[0].DM0) || null;
+      console.error('· DS[0] presente. Operaciones (SH.DM1):', JSON.stringify(ops));
+      console.error('· Filas por hora (PH.DM0):', dm0 ? dm0.length : dm0);
+      if (dm0 && dm0.length) console.error('· 1ª fila de ejemplo:', JSON.stringify(dm0[0]).slice(0, 400));
+      if ((!dm0 || !dm0.length) && (!ops || !ops.length)) console.error('· Dataset VACÍO: los filtros (fecha/torre/temporada) no calzan con datos → probable cambio de IDs/tabla de fecha al republicar el reporte.');
+    }
+  } catch (e) {
+    console.error('· No se pudo analizar la respuesta:', (e && e.message) || e);
+  }
+  // Volcado crudo truncado para inspección manual (los IDs viven en ApplicationContext del request, no aquí).
+  let s; try { s = JSON.stringify(raw); } catch (_) { s = String(raw); }
+  console.error('· Respuesta cruda (primeros 2500 chars):\n' + (s || '').slice(0, 2500));
+  console.error('===== FIN DIAGNÓSTICO =====\n');
 }
 
 // Ejecuta la consulta "Tráfico por Horas" para una fecha concreta.
