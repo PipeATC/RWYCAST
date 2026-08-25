@@ -48,6 +48,14 @@ function declaredCap() { const n = parseInt(env.DECLARED_CAP, 10); return Number
 function torre() { return env.PBI_TORRE || 'SCEL'; }
 function resourceKey() { return env.PBI_RESOURCE_KEY || DEFAULTS.RESOURCE_KEY; }
 function queryUrl() { return env.PBI_QUERYDATA_URL || DEFAULTS.QUERYDATA_URL; }
+// Medida de movimientos PROYECTADOS. La original 'Qtd T_Proy2' fue renombrada en
+// el reporte; se prueban las candidatas de #Metricas hasta dar con una que mapee.
+// Override fijo con PBI_MEASURE. Orden: total proyectado primero.
+function measureCandidates() {
+  if (env.PBI_MEASURE) return [env.PBI_MEASURE];
+  return ['Qtd T_Proy', 'Qtd T_Proy3', 'Qtd T_Proy2'];
+}
+const sumHourly = (hourly) => hourly.reduce((a, x) => a + (x.demanda || 0), 0);
 
 // Fecha local de Chile a +offset días → { iso:"YYYY-MM-DD", y, m(1-12), d }.
 function chileParts(offsetDays) {
@@ -66,16 +74,18 @@ async function refreshFromPbi() {
   const wanted = horizonParts();
   const days = {};
   const errors = [];
-  let dumped = false; // volcado de diagnóstico: solo la 1ª respuesta que no mapea.
+
+  // Elige la medida que mapea (probando candidatas contra el 1er día del horizonte).
+  const measure = await pickMeasure(wanted[0], cap, errors);
+  if (!measure) {
+    return { ok: false, msg: 'Ninguna medida candidata devolvió datos mapeables.', tried: measureCandidates(), errors };
+  }
+
   for (const p of wanted) {
     try {
-      const raw = await queryPbi(p.y, p.m, p.d);
+      const raw = await queryPbi(p.y, p.m, p.d, measure);
       const hourly = mapPbiToHourly(raw, cap);
-      if (!hourly) {
-        errors.push(`${p.iso}: respuesta sin 24 horas`);
-        if (!dumped) { dumped = true; await dumpRaw(p.iso, raw); }
-        continue;
-      }
+      if (!hourly) { errors.push(`${p.iso}: respuesta sin 24 horas`); continue; }
       const cs = capSplit(cap);
       days[p.iso] = { capacidad: cap, capArr: cs.capArr, capDep: cs.capDep, hourly };
     } catch (e) {
@@ -83,11 +93,39 @@ async function refreshFromPbi() {
     }
   }
   if (!Object.keys(days).length) {
-    return { ok: false, msg: 'No se pudo mapear ningún día del horizonte desde Power BI.', errors };
+    return { ok: false, msg: 'No se pudo mapear ningún día del horizonte desde Power BI.', measure, errors };
   }
-  const node = { source: 'powerbi-ptw-gha', updatedAt: Date.now(), days };
+  const node = { source: 'powerbi-ptw-gha', measure, updatedAt: Date.now(), days };
   await writeNode(dep, node);
-  return { ok: true, mode: 'powerbi', dep, torre: torre(), wroteDays: Object.keys(days), errors: errors.length ? errors : undefined };
+  return { ok: true, mode: 'powerbi', dep, torre: torre(), measure, wroteDays: Object.keys(days), errors: errors.length ? errors : undefined };
+}
+
+/* Prueba las medidas candidatas contra un día y devuelve la 1ª que mapea. Imprime
+ * la suma diaria de CADA candidata (para verificar magnitud vs. la referencia
+ * conocida de SCEL ~430-480 mov/día) y, ante fallo total, vuelca el diagnóstico. */
+async function pickMeasure(p, cap, errors) {
+  const cands = measureCandidates();
+  let chosen = null;
+  let dumped = false;
+  for (const m of cands) {
+    try {
+      const raw = await queryPbi(p.y, p.m, p.d, m);
+      const hourly = mapPbiToHourly(raw, cap);
+      if (hourly) {
+        console.error(`· medida '${m}' → mapea. Suma ${p.iso}: ${sumHourly(hourly)} mov`);
+        if (!chosen) chosen = m; // la 1ª que mapea (orden = preferencia)
+      } else {
+        console.error(`· medida '${m}' → 200 sin datos mapeables`);
+        if (!dumped) { dumped = true; await dumpRaw(`${p.iso}/${m}`, raw); }
+      }
+    } catch (e) {
+      const msg = String((e && e.message) || e);
+      console.error(`· medida '${m}' → error: ${msg.slice(0, 160)}`);
+      errors.push(`pickMeasure ${m}: ${msg}`);
+    }
+  }
+  if (chosen) console.error(`✔ Medida elegida: '${chosen}' (override con PBI_MEASURE si prefieres otra).`);
+  return chosen;
 }
 
 /* Diagnóstico: cuando una respuesta 200 no mapea, imprime pistas de POR QUÉ para
@@ -179,9 +217,9 @@ async function probeMeasures() {
   }
 }
 
-// Ejecuta la consulta "Tráfico por Horas" para una fecha concreta.
-async function queryPbi(y, m, d) {
-  const body = buildBody(torre(), y, m, d);
+// Ejecuta la consulta "Tráfico por Horas" para una fecha y una medida concretas.
+async function queryPbi(y, m, d, measure) {
+  const body = buildBody(torre(), y, m, d, measure);
   const resp = await fetch(queryUrl(), {
     method: 'POST',
     headers: {
@@ -201,7 +239,7 @@ async function queryPbi(y, m, d) {
 /* Reconstruye el cuerpo `querydata` del panel "Tráfico por Horas" filtrado a una
  * fecha. Fiel a la captura (cloudflare/atfm/captured-query.md); solo cambian
  * Dia/Mês/Ano y Torre. CacheKey se regenera como JSON de los Commands. */
-function buildBody(torreVal, y, m, d) {
+function buildBody(torreVal, y, m, d, measure) {
   const col = (src, prop) => ({ Column: { Expression: { SourceRef: { Source: src } }, Property: prop } });
   const lit = (v) => ({ Literal: { Value: v } });
   const inCond = (exprs, values) => ({ Condition: { In: { Expressions: exprs, Values: values } } });
@@ -225,7 +263,7 @@ function buildBody(torreVal, y, m, d) {
     Select: [
       { Column: { Expression: { SourceRef: { Source: 'd' } }, Property: 'Operacao' }, Name: 'Dim_Oper.Operacao', NativeReferenceName: 'Operacao' },
       { Column: { Expression: { SourceRef: { Source: 'd1' } }, Property: 'Hora' }, Name: 'Dim_Hora.Hora', NativeReferenceName: 'Hora' },
-      { Measure: { Expression: { SourceRef: { Source: '#' } }, Property: 'Qtd T_Proy2' }, Name: '#Metricas.Qtd T_Proy2', NativeReferenceName: 'Qtd T_Proy2' },
+      { Measure: { Expression: { SourceRef: { Source: '#' } }, Property: measure }, Name: '#Metricas.' + measure, NativeReferenceName: measure },
     ],
     Where: [
       inCond([col('d', 'Operacao')], [[lit("'DEP'")], [lit("'ARR'")]]),
