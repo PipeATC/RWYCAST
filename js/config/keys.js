@@ -20,16 +20,22 @@ const BITPATH='runcast/bitacora';      // ruta compartida de la Bitácora en Fir
 const ROTKEY='runcast:rotacion:v1';    // clave local del cuadro de Rotación de estaciones
 const ROTPATH='runcast/rotacion';      // ruta compartida de la Rotación en Firebase
 const ATFMPATH='runcast/atfm';         // feed ATFM por dependencia (lo escribe el Worker; ver js/services/atfm.js)
+<<<<<<< Updated upstream
 const EQKEY='runcast:equipos:v1';      // clave local del módulo Equipos e instalaciones
 const EQPATH='runcast/equipos';        // ruta compartida de Equipos en Firebase ({icao:{items,notams,…}})
+=======
+>>>>>>> Stashed changes
 // URL pública del Cloudflare Worker ATFM (cloudflare/atfm/worker.js). El botón
 // "Actualizar desde Power BI" del Dashboard hace GET a esta URL → el Worker consulta
 // Power BI server-side y escribe en RTDB → la app se refresca sola por la suscripción.
 // Déjala vacía hasta hacer `wrangler deploy`; pega aquí la URL (p. ej. https://rwycast-atfm.<tu-subdominio>.workers.dev).
 const ATFM_WORKER_URL='';
+<<<<<<< Updated upstream
 // Enlace público del reporte ATFM en Power BI (publish-to-web). Se usa como
 // RESPALDO mientras el Worker no esté desplegado: el botón del Dashboard abre este
 // reporte en una pestaña nueva (el navegador no puede volcar los datos al tablero
 // sin el Worker por CORS). En cuanto ATFM_WORKER_URL tenga valor, manda el Worker.
 const ATFM_POWERBI_URL='https://app.powerbi.com/view?r=eyJrIjoiMjdmMWIxMzYtNGNlYi00OTI0LWIyNTgtYmVjMWU1MTE0ODEzIiwidCI6IjE1MTgwNzE4LTQ0Y2YtNDc0OC1iM2M5LTA0NTgxNGIwMGRkNyJ9';
+=======
+>>>>>>> Stashed changes
 const SESSION_KEY='runcast:session';   // sesión recordada ("mantener sesión iniciada")

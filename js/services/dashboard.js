@@ -219,7 +219,11 @@ function dashboardData(dep,users,dateStr,atfm){
   const A=(atfm&&typeof atfm==='object')?atfm:null;
   // capacidad declarada: ATFM manda si la entrega; si no, mock (48).
   const capacidad=(A&&dashNum(A.capacidad)>0)?Math.round(A.capacidad):48;
+<<<<<<< Updated upstream
   // capacidad declarada por operación (llegadas / salidas). ATFM manda; si no, ~52/48.
+=======
+  // capacidad declarada por operación (llegadas / salidas). ATFM manda; si no, mitad y mitad.
+>>>>>>> Stashed changes
   const capArr=(A&&dashNum(A.capArr)>0)?Math.round(A.capArr):Math.round(capacidad*0.52);
   const capDep=(A&&dashNum(A.capDep)>0)?Math.round(A.capDep):Math.max(1,capacidad-Math.round(capacidad*0.52));
   // curva horaria: real de ATFM si viene con 24 puntos; si no, mock determinista.

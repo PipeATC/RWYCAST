@@ -757,7 +757,18 @@
      DASHBOARD DE DECISIONES
      ============================================================ */
   .dash-sim{margin-left:auto;font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--amber);
-    border:1px solid var(--amber-deep);padding:6px 10px}
+    border:1px solid var(--amber-deep);padding:6px 10px;background:var(--panel-2);cursor:pointer;
+    transition:background .15s,border-color .15s,color .15s}
+  .dash-sim:hover:not(:disabled){background:rgba(255,180,84,.1);border-color:var(--amber)}
+  .dash-sim.live{color:var(--phos);border-color:var(--phos-deep)}
+  .dash-sim.live:hover:not(:disabled){background:rgba(63,240,168,.08);border-color:var(--phos)}
+  .dash-sim.loading{color:var(--sky);border-color:var(--sky);cursor:progress}
+  .dash-sim:disabled{opacity:.85}
+  .dash-syncmsg{font-family:var(--mono);font-size:10.5px;line-height:1.5;letter-spacing:.02em;
+    padding:9px 12px;margin-bottom:14px;border-left:2px solid var(--line);background:var(--panel-2);color:var(--ink-dim)}
+  .dash-syncmsg.loading{border-left-color:var(--sky);color:var(--sky)}
+  .dash-syncmsg.done{border-left-color:var(--phos);color:var(--ink)}
+  .dash-syncmsg.error{border-left-color:var(--red);color:var(--ink)}
   .dash-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
   .dash-kpi{border:1px solid var(--line);background:var(--panel-2);padding:13px 15px}
   .dash-kpi-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
