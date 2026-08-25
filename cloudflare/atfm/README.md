@@ -54,27 +54,40 @@ Si no quieres/puedes desplegar Cloudflare, hay un equivalente que corre en
 **GitHub Actions** con la misma lógica de scrape y **sin cuentas nuevas**:
 
 - Script: `.github/scripts/atfm-refresh.mjs` (port en Node de este Worker).
-- Workflow: `.github/workflows/atfm.yml` (cron `10 9 * * *` + `Run workflow` manual).
+- Workflow: `.github/workflows/atfm.yml` (**solo manual**, `Run workflow`).
 
-Escribe el mismo nodo `/runcast/atfm/ACCS`, así el Dashboard se refresca solo cada
-día. **Diferencia:** al ser cron no hay endpoint HTTP, por lo que el **botón** del
-Dashboard no puede dispararlo en vivo (queda como "abrir Power BI"). Para el gatillo
-por botón en tiempo real, usa este Worker.
+Escribe el mismo nodo `/runcast/atfm/ACCS`. **Diferencia:** no hay endpoint HTTP, así
+que el **botón** del Dashboard no puede dispararlo (queda como "abrir Power BI"). Para
+el gatillo por botón, usa este Worker.
 
 ## Desplegar
 
-El Worker es **autocontenido**: el endpoint y el resource key traen por defecto
-los del enlace público, así que no hacen falta secrets para el feed.
+Es **bajo demanda**: sin cron, solo responde al `GET` que hace el botón del Dashboard.
+El Worker es **autocontenido** (endpoint, resource key y RTDB_URL vienen por defecto),
+así que no hacen falta variables ni secrets.
+
+### A) Desde el navegador (dashboard de Cloudflare — sin instalar nada)
+
+1. Entra a <https://dash.cloudflare.com> → **Workers & Pages** → **Create** → **Create Worker**.
+2. Ponle un nombre (p. ej. `rwycast-atfm`) → **Deploy**.
+3. **Edit code** → borra el ejemplo → **pega el contenido completo de `worker.js`** → **Deploy**.
+4. **NO agregues un Cron Trigger** (para que no sea automático).
+5. Copia la URL `https://rwycast-atfm.<tu-subdominio>.workers.dev` y pruébala en el navegador:
+   debe devolver `{ "ok": true, "wroteDays": [...] }`.
+
+### B) Con Wrangler (CLI, opcional)
 
 ```bash
 cd cloudflare/atfm
-# Ajusta RTDB_URL / DECLARED_CAP en wrangler.toml si hace falta
 wrangler deploy
 curl "https://rwycast-atfm.<tu-subdominio>.workers.dev/"   # dispara un refresco ya
 ```
 
-`GET /` devuelve `{ ok, wroteDays:[…], errors? }`. El cron (`10 9 * * *`) lo repite
-a diario. Si algún día falla el mapeo, `errors[]` lo dice y ese día cae a simulado.
+`GET /` escrapea Power BI y devuelve `{ ok, wroteDays:[…], errors? }`. Si algún día
+falla el mapeo, `errors[]` lo dice y ese día cae a simulado. **No hay refresco
+automático**: solo corre cuando el botón (o tú) hace el `GET`.
+
+Luego pega la URL en `ATFM_WORKER_URL` (`js/config/keys.js`) para activar el botón.
 
 ## Modo demo (sin llamar a Power BI)
 

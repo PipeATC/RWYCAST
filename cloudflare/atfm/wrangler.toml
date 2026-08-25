@@ -2,10 +2,8 @@ name = "rwycast-atfm"
 main = "worker.js"
 compatibility_date = "2025-01-01"
 
-# Una vez al día. 09:10 UTC ≈ 05:10/06:10 en Chile (madrugada): el pronóstico del
-# día ya está disponible y publish-to-web ya refrescó su caché. Ajusta a gusto.
-[triggers]
-crons = ["10 9 * * *"]
+# SIN cron a propósito: la actualización es SOLO bajo demanda (botón del Dashboard →
+# GET a este Worker). No agregues un Cron Trigger si quieres que no sea automática.
 
 [vars]
 # URL base de la Realtime Database, SIN barra final.

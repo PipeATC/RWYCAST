@@ -53,6 +53,10 @@
  */
 
 const DEFAULTS = {
+  // URL base de la Realtime Database (pública, la misma de la app). Así el Worker
+  // funciona con solo copiar/pegar en el dashboard de Cloudflare, sin configurar
+  // variables. Override con la var RTDB_URL si algún día cambia el proyecto.
+  RTDB_URL: 'https://atcbrief-default-rtdb.firebaseio.com',
   RESOURCE_KEY: '27f1b136-4ceb-4924-b258-bec1e5114813',
   QUERYDATA_URL: 'https://wabi-paas-1-scus-api.analysis.windows.net/public/reports/querydata?synchronous=true',
   DATASET_ID: '25057441-c5dd-43bc-af78-9b2b1a4982f3',
@@ -72,9 +76,8 @@ const DEFAULTS = {
 const MESES_PT = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
 export default {
-  async scheduled(event, env, ctx) {
-    ctx.waitUntil(refreshFromPbi(env).catch((e) => console.error('ATFM cron:', e)));
-  },
+  // Solo bajo demanda: se dispara con el botón del Dashboard (GET a este Worker).
+  // NO hay handler `scheduled` a propósito — la actualización nunca es automática.
   async fetch(request, env) {
     const url = new URL(request.url);
     // Preflight CORS (por si un cliente envía cabeceras no simples).
@@ -322,7 +325,7 @@ function validateNode(node) {
  * RTDB write  → PUT /runcast/atfm/<dep>  (reemplaza el nodo: purga días viejos)
  * ------------------------------------------------------------------------- */
 async function writeNode(env, dep, node) {
-  const base = (env.RTDB_URL || '').replace(/\/+$/, '');
+  const base = (env.RTDB_URL || DEFAULTS.RTDB_URL || '').replace(/\/+$/, '');
   if (!base) throw new Error('Falta RTDB_URL');
   const auth = env.RTDB_SECRET ? `?auth=${encodeURIComponent(env.RTDB_SECRET)}` : '';
   const put = await fetch(`${base}/runcast/atfm/${encodeURIComponent(dep)}.json${auth}`, {
