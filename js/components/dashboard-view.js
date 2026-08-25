@@ -163,7 +163,6 @@ function Dashboard({user,users,atfm}){
   // Refresco manual desde el origen ATFM (Power BI). El navegador NO puede consultar
   // Power BI directo (CORS): se invoca el Cloudflare Worker (GET), que hace la consulta
   // server-side y escribe en RTDB; la app se refresca sola por la suscripción en vivo.
-<<<<<<< Updated upstream
   const hasWorker=(typeof ATFM_WORKER_URL!=='undefined' && ATFM_WORKER_URL);
   const hasPbi=(typeof ATFM_POWERBI_URL!=='undefined' && ATFM_POWERBI_URL);
   const doRefresh=async()=>{
@@ -189,23 +188,6 @@ function Dashboard({user,users,atfm}){
       return;
     }
     setSync({state:'error',msg:'Configura ATFM_WORKER_URL (Worker desplegado) o ATFM_POWERBI_URL (enlace del reporte) en js/config/keys.js para actualizar desde Power BI.'});
-=======
-  const doRefresh=async()=>{
-    if(sync.state==='loading') return;
-    if(typeof ATFM_WORKER_URL==='undefined' || !ATFM_WORKER_URL){
-      setSync({state:'error',msg:'Configura ATFM_WORKER_URL en js/config/keys.js con la URL del Worker desplegado (wrangler deploy) para actualizar desde Power BI.'});
-      return;
-    }
-    setSync({state:'loading',msg:'Solicitud enviada al origen ATFM (Power BI). Obteniendo datos programados…'});
-    try{
-      const res=await fetch(ATFM_WORKER_URL,{method:'GET',cache:'no-store'});
-      let data={}; try{ data=await res.json(); }catch(e){}
-      if(!res.ok || data.ok===false) throw new Error((data&&(data.msg||data.error))||('HTTP '+res.status));
-      setSync({state:'done',msg:'Datos ATFM actualizados desde Power BI. La vista se refresca automáticamente.'});
-    }catch(e){
-      setSync({state:'error',msg:'No se pudo actualizar desde Power BI: '+(e.message||e)+'. Se mantienen los datos actuales.'});
-    }
->>>>>>> Stashed changes
   };
 
   if(!depCode) return h('div',null,
@@ -364,22 +346,14 @@ function Dashboard({user,users,atfm}){
           onClick:doRefresh, disabled:sync.state==='loading',
           title:d.atfm.live
             ? (d.atfm.updatedAt?('Última sincronización '+new Date(d.atfm.updatedAt).toLocaleString('es-CL')+' · pulsa para actualizar'):'Pulsa para actualizar desde Power BI')
-<<<<<<< Updated upstream
             : (hasWorker ? 'Pulsa para actualizar desde el origen ATFM (Power BI)'
                 : hasPbi ? 'Pulsa para abrir el reporte ATFM en Power BI'
                 : 'Configura ATFM_WORKER_URL o ATFM_POWERBI_URL en keys.js')},
-=======
-            : 'Pulsa para actualizar desde el origen ATFM (Power BI)'},
->>>>>>> Stashed changes
           sync.state==='loading'
             ? '⟳ ACTUALIZANDO…'
             : (d.atfm.live
                 ? '● DATOS ATFM'+(d.atfm.updatedAt?' · '+new Date(d.atfm.updatedAt).toLocaleString('es-CL',{dateStyle:'short',timeStyle:'short'}):'')
-<<<<<<< Updated upstream
                 : '◆ DATOS SIMULADOS · '+(hasWorker?'ACTUALIZAR':hasPbi?'VER ATFM':'ACTUALIZAR')))),
-=======
-                : '◆ DATOS SIMULADOS · ACTUALIZAR'))),
->>>>>>> Stashed changes
       sync.msg && h('div',{className:'dash-syncmsg '+sync.state}, sync.msg),
       kpis,
       h('div',{className:'dash-grid'},
