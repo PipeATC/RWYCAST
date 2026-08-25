@@ -22,4 +22,9 @@ const ROTPATH='runcast/rotacion';      // ruta compartida de la Rotación en Fir
 const ATFMPATH='runcast/atfm';         // feed ATFM por dependencia (lo escribe el Worker; ver js/services/atfm.js)
 const EQKEY='runcast:equipos:v1';      // clave local del módulo Equipos e instalaciones
 const EQPATH='runcast/equipos';        // ruta compartida de Equipos en Firebase ({icao:{items,notams,…}})
+// URL pública del Cloudflare Worker ATFM (cloudflare/atfm/worker.js). El botón
+// "Actualizar desde Power BI" del Dashboard hace GET a esta URL → el Worker consulta
+// Power BI server-side y escribe en RTDB → la app se refresca sola por la suscripción.
+// Déjala vacía hasta hacer `wrangler deploy`; pega aquí la URL (p. ej. https://rwycast-atfm.<tu-subdominio>.workers.dev).
+const ATFM_WORKER_URL='';
 const SESSION_KEY='runcast:session';   // sesión recordada ("mantener sesión iniciada")

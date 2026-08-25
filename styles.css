@@ -780,6 +780,50 @@
   .dash-legend span{display:inline-flex;align-items:center;gap:6px}
   .dash-legend .lg{width:12px;height:3px;display:inline-block;border-radius:2px}
   .dash-legend .lg.dash{background:none!important;border-top:2px dashed var(--ink-faint);height:0}
+  /* etiquetas dentro de los gráficos de barras */
+  .dash-barlbl{fill:#fff;font-family:var(--mono);font-size:8.5px;font-weight:700}
+  .dash-barlbl2{font-family:var(--mono);font-size:7px;font-weight:700}
+  .dash-caplbl{font-family:var(--mono);font-size:7.5px;font-weight:700}
+  .dash-hlbl{fill:var(--ink-faint);font-family:var(--mono);font-size:7.5px}
+  /* cabecera de tarjeta con sub-título + botón de acción */
+  .dash-card-hr{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .dash-card-hr span{margin-left:0}
+  .dash-expand{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--sky);background:var(--panel-2);border:1px solid var(--line);padding:5px 9px;cursor:pointer;
+    transition:background .15s,border-color .15s}
+  .dash-expand:hover{background:rgba(92,200,255,.1);border-color:var(--sky)}
+
+  /* ---- Ventana emergente (explorador ARR/DEP) ---- */
+  .dash-modal-ov{position:fixed;inset:0;z-index:120;background:rgba(4,8,11,.72);backdrop-filter:blur(2px);
+    display:flex;align-items:flex-start;justify-content:center;padding:4vh 16px;overflow-y:auto}
+  .dash-modal{width:min(1040px,100%);background:var(--panel);border:1px solid var(--line);
+    box-shadow:0 24px 60px rgba(0,0,0,.5);display:flex;flex-direction:column}
+  .dash-modal-h{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--line-soft);
+    background:linear-gradient(180deg,var(--panel-2),var(--panel))}
+  .dash-modal-h h3{font-family:var(--mono);font-size:13px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink);font-weight:700}
+  .dash-modal-x{margin-left:auto;font-family:var(--mono);font-size:15px;color:var(--ink-dim);background:none;
+    border:1px solid var(--line);width:30px;height:30px;cursor:pointer;transition:color .15s,border-color .15s}
+  .dash-modal-x:hover{color:var(--red);border-color:var(--red)}
+  .dash-modal-tools{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;padding:13px 16px;
+    border-bottom:1px solid var(--line-soft)}
+  .dash-seg{display:inline-flex;border:1px solid var(--line);overflow:hidden}
+  .dash-seg-btn{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.06em;color:var(--ink-dim);
+    background:var(--panel-2);border:none;border-left:1px solid var(--line);padding:8px 12px;cursor:pointer;
+    transition:background .15s,color .15s}
+  .dash-seg .dash-seg-btn:first-child{border-left:none}
+  .dash-seg-btn:hover{color:var(--ink)}
+  .dash-seg-btn.on{background:var(--sky);color:var(--void)}
+  .dash-range{display:flex;flex-direction:column;gap:5px;font-family:var(--mono);font-size:9px;
+    letter-spacing:.12em;color:var(--ink-faint)}
+  .dash-modal-body{padding:16px;overflow-x:auto}
+  .dash-modal-tbl{margin-top:14px;max-height:38vh;overflow-y:auto;border:1px solid var(--line-soft)}
+  .dash-modal-foot{padding:11px 16px;border-top:1px solid var(--line-soft);font-family:var(--mono);
+    font-size:10px;letter-spacing:.04em;color:var(--ink-faint)}
+  @media (max-width:760px){
+    .dash-modal-tools{gap:9px}
+    .dash-seg-btn{padding:7px 9px}
+  }
 
   .dash-bars{display:flex;flex-direction:column;gap:9px}
   .dash-bar{display:grid;grid-template-columns:26px 1fr auto;align-items:center;gap:10px}

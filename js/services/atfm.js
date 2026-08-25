@@ -18,8 +18,11 @@
    Un DÍA es este paquete:
    {
      capacidad: 48,              // capacidad declarada por hora (nº)
+     capArr: 25, capDep: 23,     // capacidad declarada por operación (opc.; si falta → ~52/48)
      hourly: [                   // EXACTAMENTE 24 entradas, h:0..23
-       { h:0, demanda:9, capacidad:48, complejidad:41 }, ...
+       // arr/dep y comerciales/noComerciales son OPCIONALES: si faltan, el Dashboard
+       // los deriva de `demanda` (gráficos ARR/DEP y Comercial/No Comercial).
+       { h:0, demanda:9, arr:5, dep:4, comerciales:8, noComerciales:1, capacidad:48, complejidad:41 }, ...
      ],
      sectores: [ { code:'R15', load:41, cap:44 }, ... ],   // carga por sector
      regulaciones: [                                        // slots / regulaciones

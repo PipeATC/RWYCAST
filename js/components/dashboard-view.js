@@ -2,12 +2,183 @@
 // DATOS FICTICIOS por ahora (ver js/services/dashboard.js). Pensado para decidir la
 // asignación de personal a posiciones: picos de demanda vs capacidad, carga por sector,
 // dotación disponible y fatiga por ATC, más recomendaciones derivadas.
+
+// Paleta de los gráficos de barras (fija en ambos temas, como el color de marca de FR24):
+// azul comercial / oro no comercial / naranjo capacidad; salmón ARR / celeste DEP; magenta
+// y azul profundo para las capacidades por operación. Espejo de las imágenes de referencia.
+const DASH_COL={ com:'#2e9bff', nc:'#f4c430', cap:'#e8733e',
+  arr:'#f0a184', dep:'#9cc3e4', capArr:'#e5439b', capDep:'#2746c9' };
+
+// --- Gráfico 1: Demanda por hora — barras apiladas Comercial/No Comercial + línea de capacidad ---
+function dashDemandaChart(H, capacidad, nowH){
+  const W=800,HT=250,pL=34,pR=14,pT=30,pB=32;
+  const n=24, plotW=W-pL-pR, plotH=HT-pT-pB, base=pT+plotH;
+  const maxY=(Math.max(capacidad, ...H.map(x=>x.demanda))||1)*1.16;
+  const slot=plotW/n, bw=slot*0.62;
+  const xl=i=>pL+slot*i+(slot-bw)/2, cx=i=>pL+slot*i+slot/2;
+  const Y=v=>base-(v/maxY)*plotH;
+  const ticks=[0,Math.round(maxY/3),Math.round(maxY*2/3)];
+  const capY=Y(capacidad);
+  return h('svg',{className:'dash-svg',viewBox:'0 0 '+W+' '+HT,role:'img',preserveAspectRatio:'xMidYMid meet'},
+    ticks.map((v,i)=>h('g',{key:'g'+i},
+      h('line',{x1:pL,x2:W-pR,y1:Y(v),y2:Y(v),stroke:'var(--line-soft)',strokeWidth:1}),
+      h('text',{x:pL-6,y:Y(v)+3,textAnchor:'end',className:'dash-axt'},v))),
+    H.map((x,i)=>{ const yc=Y(x.comerciales), ync=Y(x.comerciales+x.noComerciales);
+      const lblY=Math.min(base-6,(yc+base)/2+3);
+      return h('g',{key:'b'+i},
+        h('rect',{x:xl(i),y:yc,width:bw,height:Math.max(0,base-yc),fill:DASH_COL.com}),
+        x.noComerciales>0&&h('rect',{x:xl(i),y:ync,width:bw,height:Math.max(0,yc-ync),fill:DASH_COL.nc}),
+        x.demanda>0&&h('text',{x:cx(i),y:lblY,textAnchor:'middle',className:'dash-barlbl'},x.comerciales),
+        h('rect',{x:xl(i),y:pT,width:bw,height:base-pT,fill:'transparent'},
+          h('title',null,String(x.h).padStart(2,'0')+':00 · demanda '+x.demanda+' mov (com '+x.comerciales+' / no com '+x.noComerciales+') · cap '+capacidad))); }),
+    h('line',{x1:pL,x2:W-pR,y1:capY,y2:capY,stroke:DASH_COL.cap,strokeWidth:2.5}),
+    H.map((x,i)=>h('text',{key:'c'+i,x:cx(i),y:capY-5,textAnchor:'middle',className:'dash-caplbl',
+      style:{fill:DASH_COL.cap}},capacidad)),
+    (nowH>=0&&nowH<24)&&h('line',{x1:cx(nowH),x2:cx(nowH),y1:pT,y2:base,stroke:'var(--amber)',
+      strokeWidth:1,strokeDasharray:'3 3',opacity:.7}),
+    H.map((x,i)=>h('text',{key:'x'+i,x:cx(i),y:base+13,textAnchor:'middle',className:'dash-hlbl'},
+      String(x.h).padStart(2,'0')+':00')));
+}
+function dashDemandaLegend(){
+  return h('div',{className:'dash-legend'},
+    h('span',null,h('i',{className:'lg',style:{background:DASH_COL.com}}),'Comerciales'),
+    h('span',null,h('i',{className:'lg',style:{background:DASH_COL.nc}}),'No Comerciales'),
+    h('span',null,h('i',{className:'lg',style:{background:DASH_COL.cap}}),'Capacidad Total'));
+}
+
+// --- Gráfico 2: Tráfico programado por hora — barras agrupadas ARR/DEP + capacidades por operación ---
+// opts: { showArr, showDep, from, to } — el modal las usa para filtrar; la tarjeta muestra todo.
+function dashArrDepChart(H, capArr, capDep, opts){
+  opts=opts||{}; const showArr=opts.showArr!==false, showDep=opts.showDep!==false;
+  const from=opts.from!=null?opts.from:0, to=opts.to!=null?opts.to:23;
+  const hours=H.filter(x=>x.h>=from&&x.h<=to);
+  const W=800,HT=250,pL=34,pR=14,pT=36,pB=32;
+  const n=Math.max(1,hours.length), plotW=W-pL-pR, plotH=HT-pT-pB, base=pT+plotH;
+  const vals=[]; if(showArr){vals.push(capArr); hours.forEach(x=>vals.push(x.arr));}
+  if(showDep){vals.push(capDep); hours.forEach(x=>vals.push(x.dep));}
+  const maxY=(Math.max(1,...vals))*1.18;
+  const slot=plotW/n, Y=v=>base-(v/maxY)*plotH, cx=i=>pL+slot*i+slot/2;
+  const both=showArr&&showDep;
+  const bw=both?slot*0.30:slot*0.46, gap=both?slot*0.06:0;
+  const arrX=i=>both?(pL+slot*i+slot/2-gap/2-bw):(pL+slot*i+(slot-bw)/2);
+  const depX=i=>both?(pL+slot*i+slot/2+gap/2):(pL+slot*i+(slot-bw)/2);
+  const ticks=[0,Math.round(maxY/3),Math.round(maxY*2/3)];
+  const capArrY=Y(capArr), capDepY=Y(capDep);
+  const showLbl=n<=24;
+  return h('svg',{className:'dash-svg',viewBox:'0 0 '+W+' '+HT,role:'img',preserveAspectRatio:'xMidYMid meet'},
+    ticks.map((v,i)=>h('g',{key:'g'+i},
+      h('line',{x1:pL,x2:W-pR,y1:Y(v),y2:Y(v),stroke:'var(--line-soft)',strokeWidth:1}),
+      h('text',{x:pL-6,y:Y(v)+3,textAnchor:'end',className:'dash-axt'},v))),
+    hours.map((x,i)=>h('g',{key:'b'+i},
+      showArr&&h('rect',{x:arrX(i),y:Y(x.arr),width:bw,height:Math.max(0,base-Y(x.arr)),fill:DASH_COL.arr}),
+      showDep&&h('rect',{x:depX(i),y:Y(x.dep),width:bw,height:Math.max(0,base-Y(x.dep)),fill:DASH_COL.dep}),
+      showArr&&showLbl&&x.arr>0&&h('text',{x:arrX(i)+bw/2,y:Y(x.arr)-3,textAnchor:'middle',
+        className:'dash-barlbl2',style:{fill:DASH_COL.arr}},x.arr),
+      showDep&&showLbl&&x.dep>0&&h('text',{x:depX(i)+bw/2,y:Y(x.dep)-3,textAnchor:'middle',
+        className:'dash-barlbl2',style:{fill:DASH_COL.dep}},x.dep),
+      h('rect',{x:pL+slot*i,y:pT,width:slot,height:base-pT,fill:'transparent'},
+        h('title',null,String(x.h).padStart(2,'0')+':00 · ARR '+x.arr+' / DEP '+x.dep
+          +' · cap ARR '+capArr+' / cap DEP '+capDep)))),
+    showArr&&h('line',{x1:pL,x2:W-pR,y1:capArrY,y2:capArrY,stroke:DASH_COL.capArr,strokeWidth:2}),
+    showDep&&h('line',{x1:pL,x2:W-pR,y1:capDepY,y2:capDepY,stroke:DASH_COL.capDep,strokeWidth:2}),
+    showLbl&&showArr&&hours.map((x,i)=>h('text',{key:'ca'+i,x:cx(i),y:capArrY-3,textAnchor:'middle',
+      className:'dash-caplbl',style:{fill:DASH_COL.capArr}},capArr)),
+    showLbl&&showDep&&hours.map((x,i)=>h('text',{key:'cd'+i,x:cx(i),y:capDepY-3,textAnchor:'middle',
+      className:'dash-caplbl',style:{fill:DASH_COL.capDep}},capDep)),
+    hours.map((x,i)=>h('text',{key:'x'+i,x:cx(i),y:base+13,textAnchor:'middle',className:'dash-hlbl'},
+      String(x.h).padStart(2,'0')+':00')));
+}
+function dashArrDepLegend(showArr,showDep){
+  return h('div',{className:'dash-legend'},
+    showArr&&h('span',null,h('i',{className:'lg',style:{background:DASH_COL.arr}}),'ARR'),
+    showDep&&h('span',null,h('i',{className:'lg',style:{background:DASH_COL.dep}}),'DEP'),
+    showArr&&h('span',null,h('i',{className:'lg',style:{background:DASH_COL.capArr}}),'Capacidad de ARR'),
+    showDep&&h('span',null,h('i',{className:'lg',style:{background:DASH_COL.capDep}}),'Capacidad de DEP'));
+}
+
+// --- Ventana emergente: explorador ARR/DEP con filtros (operación, fecha, rango horario, tabla) ---
+function AtfmExplorer({depCode,depLabel,users,atfm,initialDate,onClose}){
+  const [date,setDate]=useState(initialDate);
+  const [showArr,setShowArr]=useState(true);
+  const [showDep,setShowDep]=useState(true);
+  const [from,setFrom]=useState(0);
+  const [to,setTo]=useState(23);
+  const [table,setTable]=useState(false);
+  useEffect(()=>{ const k=e=>{ if(e.key==='Escape') onClose(); };
+    window.addEventListener('keydown',k); return ()=>window.removeEventListener('keydown',k); },[]);
+
+  const d=dashboardData(depCode,users,date, atfmForDep(atfm,depCode,date));
+  const lo=Math.min(from,to), hi=Math.max(from,to);
+  const rows=d.hourly.filter(x=>x.h>=lo&&x.h<=hi);
+  // No permitir ocultar ambas operaciones a la vez.
+  const setOp=(a,dp)=>{ if(!a&&!dp) return; setShowArr(a); setShowDep(dp); };
+  const seg=(lbl,a,dp)=>h('button',{className:'dash-seg-btn'+((showArr===a&&showDep===dp)?' on':''),
+    onClick:()=>setOp(a,dp)}, lbl);
+  const hourOpts=(sel,on)=>h('select',{className:'bit-sel',value:sel,onChange:e=>on(+e.target.value)},
+    Array.from({length:24},(_,i)=>h('option',{key:i,value:i},String(i).padStart(2,'0')+':00')));
+
+  return h('div',{className:'dash-modal-ov',onClick:e=>{ if(e.target===e.currentTarget) onClose(); }},
+    h('div',{className:'dash-modal',role:'dialog','aria-modal':'true'},
+      h('div',{className:'dash-modal-h'},
+        h('h3',null,'Tráfico ARR/DEP · '+depLabel),
+        h('button',{className:'dash-modal-x',onClick:onClose,title:'Cerrar (Esc)'},'✕')),
+      h('div',{className:'dash-modal-tools'},
+        h('div',{className:'dash-seg'}, seg('Ambas',true,true), seg('Solo ARR',true,false), seg('Solo DEP',false,true)),
+        h('label',{className:'bit-date'}, h('span',null,'FECHA'),
+          h('input',{type:'date',value:date,onChange:e=>setDate(e.target.value||initialDate)})),
+        h('label',{className:'dash-range'}, h('span',null,'DESDE'), hourOpts(from,setFrom)),
+        h('label',{className:'dash-range'}, h('span',null,'HASTA'), hourOpts(to,setTo)),
+        h('button',{className:'dash-seg-btn'+(table?' on':''),onClick:()=>setTable(t=>!t)},
+          table?'Ocultar tabla':'Ver tabla')),
+      h('div',{className:'dash-modal-body'},
+        h('div',{className:'dash-chartwrap'},
+          dashArrDepChart(d.hourly, d.capArr, d.capDep, {showArr,showDep,from:lo,to:hi}),
+          dashArrDepLegend(showArr,showDep)),
+        table && h('div',{className:'dash-modal-tbl'},
+          h('table',{className:'dash-tbl'},
+            h('thead',null,h('tr',null,
+              h('th',null,'Hora'),
+              showArr&&h('th',{className:'r'},'ARR'),
+              showDep&&h('th',{className:'r'},'DEP'),
+              h('th',{className:'r'},'Total'))),
+            h('tbody',null, rows.map(x=>h('tr',{key:x.h},
+              h('td',{className:'b'},String(x.h).padStart(2,'0')+':00'),
+              showArr&&h('td',{className:'r'},x.arr),
+              showDep&&h('td',{className:'r'},x.dep),
+              h('td',{className:'r b'},(showArr?x.arr:0)+(showDep?x.dep:0)))))))),
+      h('div',{className:'dash-modal-foot'},
+        (d.atfm.live?'Datos ATFM · programado':'Datos simulados')
+        +' · cap. ARR '+d.capArr+' / cap. DEP '+d.capDep+' mov/h · '+rotLongDate(date))));
+}
+
 function Dashboard({user,users,atfm}){
   const deps=dashDepsFor(user,users);
   const [depCode,setDepCode]=useState(()=> userDep(user)||deps[0]||'');
   const [date,setDate]=useState(()=>rotToday());
+  const [explorer,setExplorer]=useState(false);
+  const [sync,setSync]=useState({state:'idle',msg:''});
   const [,setTick]=useState(0);
   useEffect(()=>{ const t=setInterval(()=>setTick(x=>x+1),60000); return ()=>clearInterval(t); },[]);
+
+  // Refresco manual desde el origen ATFM (Power BI). El navegador NO puede consultar
+  // Power BI directo (CORS): se invoca el Cloudflare Worker (GET), que hace la consulta
+  // server-side y escribe en RTDB; la app se refresca sola por la suscripción en vivo.
+  const doRefresh=async()=>{
+    if(sync.state==='loading') return;
+    if(typeof ATFM_WORKER_URL==='undefined' || !ATFM_WORKER_URL){
+      setSync({state:'error',msg:'Configura ATFM_WORKER_URL en js/config/keys.js con la URL del Worker desplegado (wrangler deploy) para actualizar desde Power BI.'});
+      return;
+    }
+    setSync({state:'loading',msg:'Solicitud enviada al origen ATFM (Power BI). Obteniendo datos programados…'});
+    try{
+      const res=await fetch(ATFM_WORKER_URL,{method:'GET',cache:'no-store'});
+      let data={}; try{ data=await res.json(); }catch(e){}
+      if(!res.ok || data.ok===false) throw new Error((data&&(data.msg||data.error))||('HTTP '+res.status));
+      setSync({state:'done',msg:'Datos ATFM actualizados desde Power BI. La vista se refresca automáticamente.'});
+    }catch(e){
+      setSync({state:'error',msg:'No se pudo actualizar desde Power BI: '+(e.message||e)+'. Se mantienen los datos actuales.'});
+    }
+  };
 
   if(!depCode) return h('div',null,
     h('div',{className:'phead',style:{borderTop:'none'}},h('h3',null,'Dashboard de decisiones')),
@@ -31,36 +202,14 @@ function Dashboard({user,users,atfm}){
     kpi('Sectores abiertos', k.sectoresAbiertos.open, 'posiciones activas'),
     kpi('Complejidad', k.complejidad.value, 'índice (0-100)'));
 
-  // ---- gráfico horario: demanda (área+línea) vs capacidad (línea de referencia) ----
-  const H=d.hourly, W=760,HT=232,pL=30,pR=10,pT=12,pB=24;
-  const maxY=Math.max(...H.map(x=>Math.max(x.demanda,x.capacidad)))*1.12||1;
-  const X=i=>pL+(i/23)*(W-pL-pR);
-  const Y=v=>HT-pB-(v/maxY)*(HT-pT-pB);
-  const dLine=H.map((x,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(x.demanda).toFixed(1)).join(' ');
-  const dArea=dLine+' L'+X(23).toFixed(1)+' '+(HT-pB)+' L'+X(0).toFixed(1)+' '+(HT-pB)+' Z';
-  const capY=Y(H[0].capacidad);
-  const yticks=[0,Math.round(maxY/2),Math.round(maxY*0.9)];
+  // ---- gráfico 1: demanda por hora — barras apiladas Comercial/No Comercial + capacidad ----
+  const H=d.hourly;
   const hourlyChart=h('div',{className:'dash-chartwrap'},
-    h('svg',{className:'dash-svg',viewBox:'0 0 '+W+' '+HT,role:'img'},
-      yticks.map((v,i)=>h('g',{key:'g'+i},
-        h('line',{x1:pL,x2:W-pR,y1:Y(v),y2:Y(v),stroke:'var(--line-soft)',strokeWidth:1}),
-        h('text',{x:pL-5,y:Y(v)+3,textAnchor:'end',className:'dash-axt'},v))),
-      h('path',{d:dArea,fill:'rgba(63,240,168,.14)',stroke:'none'}),
-      h('path',{d:dLine,fill:'none',stroke:P,strokeWidth:2,strokeLinejoin:'round'}),
-      h('line',{x1:pL,x2:W-pR,y1:capY,y2:capY,stroke:DIM,strokeWidth:2,strokeDasharray:'5 4'}),
-      h('text',{x:W-pR,y:capY-5,textAnchor:'end',className:'dash-axt'},'capacidad '+H[0].capacidad),
-      // marca de hora actual
-      h('line',{x1:X(d.nowH),x2:X(d.nowH),y1:pT,y2:HT-pB,stroke:A,strokeWidth:1.5}),
-      h('circle',{cx:X(d.nowH),cy:Y(H[d.nowH].demanda),r:4,fill:A,stroke:'var(--panel)',strokeWidth:2}),
-      [0,3,6,9,12,15,18,21,23].map(hh=>h('text',{key:'x'+hh,x:X(hh),y:HT-8,textAnchor:'middle',className:'dash-axt'},
-        String(hh).padStart(2,'0'))),
-      // zonas de hover por hora (tooltip nativo)
-      H.map((x,i)=>h('rect',{key:'h'+i,x:X(i)-((W-pL-pR)/23)/2,y:pT,width:(W-pL-pR)/23,height:HT-pT-pB,
-        fill:'transparent'}, h('title',null,String(i).padStart(2,'0')+':00 · demanda '+x.demanda+' · cap '+x.capacidad+' · compl '+x.complejidad)))),
-    h('div',{className:'dash-legend'},
-      h('span',null,h('i',{className:'lg',style:{background:P}}),'Demanda (mov/h)'),
-      h('span',null,h('i',{className:'lg dash',style:{background:DIM}}),'Capacidad declarada'),
-      h('span',null,h('i',{className:'lg',style:{background:A}}),'Hora actual')));
+    dashDemandaChart(H, d.capacidad, d.nowH), dashDemandaLegend());
+
+  // ---- gráfico 2: tráfico programado por hora ARR/DEP (con capacidades por operación) ----
+  const arrDepChart=h('div',{className:'dash-chartwrap'},
+    dashArrDepChart(H, d.capArr, d.capDep, {}), dashArrDepLegend(true,true));
 
   // ---- carga por sector (barras horizontales, color por estado) ----
   const sectBars=h('div',{className:'dash-bars'},
@@ -163,6 +312,16 @@ function Dashboard({user,users,atfm}){
   const card=(title,sub,body,cls)=>h('div',{className:'dash-card'+(cls?' '+cls:'')},
     h('div',{className:'dash-card-h'}, h('h4',null,title), sub&&h('span',null,sub)), body);
 
+  // Tarjeta del gráfico ARR/DEP con botón que abre la ventana emergente (explorador).
+  const arrDepCard=h('div',{className:'dash-card wide'},
+    h('div',{className:'dash-card-h'},
+      h('h4',null,'Tráfico programado por horas · ARR/DEP'),
+      h('div',{className:'dash-card-hr'},
+        h('span',null, d.atfm.fields.hourly?'ATFM · programado':'programado'),
+        h('button',{className:'dash-expand',onClick:()=>setExplorer(true),
+          title:'Abrir ventana para navegar y filtrar'},'⤢ Explorar'))),
+    arrDepChart);
+
   return h('div',null,
     h('div',{className:'phead',style:{borderTop:'none'}},
       h('h3',null,'Dashboard de decisiones · '+depName(depCode,users)),
@@ -173,14 +332,21 @@ function Dashboard({user,users,atfm}){
           deps.map(x=>h('option',{key:x,value:x}, depName(x,users)))),
         h('label',{className:'bit-date'}, h('span',null,'FECHA'),
           h('input',{type:'date',value:date,onChange:e=>setDate(e.target.value||rotToday())})),
-        (d.atfm.live
-          ? h('span',{className:'dash-sim live',
-              title:d.atfm.updatedAt?('Actualizado '+new Date(d.atfm.updatedAt).toLocaleString('es-CL')):''},
-              '● ATFM EN VIVO'+(d.atfm.source?' · '+String(d.atfm.source).toUpperCase():''))
-          : h('span',{className:'dash-sim'},'◆ DATOS SIMULADOS'))),
+        h('button',{className:'dash-sim'+(d.atfm.live?' live':'')+(sync.state==='loading'?' loading':''),
+          onClick:doRefresh, disabled:sync.state==='loading',
+          title:d.atfm.live
+            ? (d.atfm.updatedAt?('Última sincronización '+new Date(d.atfm.updatedAt).toLocaleString('es-CL')+' · pulsa para actualizar'):'Pulsa para actualizar desde Power BI')
+            : 'Pulsa para actualizar desde el origen ATFM (Power BI)'},
+          sync.state==='loading'
+            ? '⟳ ACTUALIZANDO…'
+            : (d.atfm.live
+                ? '● DATOS ATFM'+(d.atfm.updatedAt?' · '+new Date(d.atfm.updatedAt).toLocaleString('es-CL',{dateStyle:'short',timeStyle:'short'}):'')
+                : '◆ DATOS SIMULADOS · ACTUALIZAR'))),
+      sync.msg && h('div',{className:'dash-syncmsg '+sync.state}, sync.msg),
       kpis,
       h('div',{className:'dash-grid'},
         card('Demanda vs capacidad por hora', d.atfm.fields.hourly?'ATFM · mov/hora':'movimientos/hora', hourlyChart,'wide'),
+        arrDepCard,
         card('Rotación de turnos', d.turnos.dia.count+' día · '+d.turnos.noche.count+' noche', turnos),
         card('Carga por sector', d.atfm.fields.sectores?'ATFM · ahora':'ahora', sectBars),
         card('Dotación de turno', dt.total+' ATC', dotacion),
@@ -200,5 +366,7 @@ function Dashboard({user,users,atfm}){
              +(d.atfm.source?' ('+d.atfm.source+')':'')+'. La dotación y la fatiga provienen del roster de la '
              +'dependencia; las estadísticas de movimientos, uso de pistas y el FID simulan un feed tipo Flightradar24.')
           : ('Datos de demostración. La carga y dotación se vincularán con el módulo ATFM (Power BI); '
-             +'las estadísticas de movimientos, uso de pistas y el FID simulan un feed tipo Flightradar24.'))));
+             +'las estadísticas de movimientos, uso de pistas y el FID simulan un feed tipo Flightradar24.'))),
+    explorer && h(AtfmExplorer,{depCode, depLabel:depName(depCode,users), users, atfm,
+      initialDate:date, onClose:()=>setExplorer(false)}));
 }

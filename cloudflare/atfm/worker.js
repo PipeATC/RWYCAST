@@ -72,6 +72,8 @@ export default {
   },
   async fetch(request, env) {
     const url = new URL(request.url);
+    // Preflight CORS (por si un cliente envía cabeceras no simples).
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     try {
       if (request.method === 'POST' && url.pathname === '/feed') return await handleManualFeed(request, env, url);
       if (url.pathname === '/demo') {
@@ -122,7 +124,8 @@ async function refreshFromPbi(env) {
       const raw = await queryPbi(env, p.y, p.m, p.d);
       const hourly = mapPbiToHourly(raw, cap);
       if (!hourly) { errors.push(`${p.iso}: respuesta sin 24 horas`); continue; }
-      days[p.iso] = { capacidad: cap, hourly };
+      const cs = capSplit(cap);
+      days[p.iso] = { capacidad: cap, capArr: cs.capArr, capDep: cs.capDep, hourly };
     } catch (e) {
       errors.push(`${p.iso}: ${String((e && e.message) || e)}`);
     }
@@ -219,7 +222,8 @@ function buildBody(torreVal, y, m, d) {
 }
 
 /* Convierte la respuesta DSR (matriz Operacao × Hora, medida Qtd T_Proy2) al
- * `hourly[24]` del contrato: demanda = ARR + DEP. Devuelve null si no hay 24 horas. */
+ * `hourly[24]` del contrato: demanda = ARR + DEP, conservando el desglose arr/dep
+ * (el Dashboard alimenta con ellos el gráfico ARR/DEP). Devuelve null si no hay datos. */
 function mapPbiToHourly(raw, cap) {
   let ds, ops, dm0;
   try {
@@ -240,13 +244,18 @@ function mapPbiToHourly(raw, cap) {
       const op = ops[idx];
       if (op === 'ARR') arr = v; else if (op === 'DEP') dep = v;
     });
-    byHour.set(hr, Math.max(0, Math.round(arr + dep)));
+    byHour.set(hr, { arr: Math.max(0, Math.round(arr)), dep: Math.max(0, Math.round(dep)) });
   }
   if (!byHour.size) return null;
   const hourly = [];
-  for (let h = 0; h < 24; h++) hourly.push({ h, demanda: byHour.get(h) || 0, capacidad: cap });
+  for (let h = 0; h < 24; h++) {
+    const o = byHour.get(h) || { arr: 0, dep: 0 };
+    hourly.push({ h, demanda: o.arr + o.dep, arr: o.arr, dep: o.dep, capacidad: cap });
+  }
   return hourly;
 }
+// Capacidad declarada por operación (llegadas/salidas): ~52/48 de la total (config operacional).
+function capSplit(cap) { const capArr = Math.round(cap * 0.52); return { capArr, capDep: Math.max(1, cap - capArr) }; }
 
 // La hora viene como "1899-12-30THH:00:00" (solo interesa HH).
 function hourOf(g0) {
@@ -327,14 +336,20 @@ function requireFeedKey(env, url) {
 function demoDays(n, cap) {
   const base = [9, 6, 4, 3, 3, 5, 12, 28, 44, 49, 45, 43, 46, 48, 45, 47, 50, 53, 49, 39, 29, 21, 15, 10];
   const days = {};
+  const cs = capSplit(cap);
   for (let i = 0; i <= n; i++) {
     const f = 1 + i * 0.06;
-    const hourly = base.map((v, h) => ({ h, demanda: Math.round(v * f), capacidad: cap }));
-    days[chileParts(i).iso] = { capacidad: cap, hourly };
+    const hourly = base.map((v, h) => { const demanda = Math.round(v * f); const arr = Math.round(demanda * 0.5);
+      return { h, demanda, arr, dep: demanda - arr, capacidad: cap }; });
+    days[chileParts(i).iso] = { capacidad: cap, capArr: cs.capArr, capDep: cs.capDep, hourly };
   }
   return days;
 }
 
+// El Dashboard (otra origin) hace fetch a este Worker desde el navegador: CORS abierto
+// para poder LEER la respuesta. La escritura real la hace el Worker server-side en RTDB.
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' };
 function json(obj, status) {
-  return new Response(JSON.stringify(obj, null, 2), { status: status || 200, headers: { 'Content-Type': 'application/json; charset=utf-8' } });
+  return new Response(JSON.stringify(obj, null, 2), { status: status || 200,
+    headers: Object.assign({ 'Content-Type': 'application/json; charset=utf-8' }, CORS) });
 }
