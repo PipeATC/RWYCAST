@@ -16,8 +16,9 @@
  * anónimo, sin Azure AD). La consulta `querydata` del panel "Tráfico por Horas"
  * se CAPTURÓ una vez (ver captured-query.md) y aquí se RECONSTRUYE por fecha:
  * para cada día del horizonte se reescriben los filtros Dia/Mês/Ano y se pide al
- * endpoint. La medida es `Qtd T_Proy2` (movimientos PROYECTADOS), por eso las
- * fechas futuras devuelven datos (tráfico programado por temporada IATA).
+ * endpoint. La medida es `Qtd T_Proy` (movimientos PROYECTADOS; antes `Qtd T_Proy2`,
+ * renombrada en el reporte), por eso las fechas futuras devuelven datos (tráfico
+ * programado por temporada IATA). Override con env PBI_MEASURE si vuelve a cambiar.
  *
  *   ⚠️ Publish-to-web va con RETARDO (caché ~1 h) y el endpoint no está
  *   documentado. Para un pronóstico diario a 3 días es aceptable; para producción
@@ -52,6 +53,10 @@
  */
 
 const DEFAULTS = {
+  // URL base de la Realtime Database (pública, la misma de la app). Así el Worker
+  // funciona con solo copiar/pegar en el dashboard de Cloudflare, sin configurar
+  // variables. Override con la var RTDB_URL si algún día cambia el proyecto.
+  RTDB_URL: 'https://atcbrief-default-rtdb.firebaseio.com',
   RESOURCE_KEY: '27f1b136-4ceb-4924-b258-bec1e5114813',
   QUERYDATA_URL: 'https://wabi-paas-1-scus-api.analysis.windows.net/public/reports/querydata?synchronous=true',
   DATASET_ID: '25057441-c5dd-43bc-af78-9b2b1a4982f3',
@@ -63,13 +68,16 @@ const DEFAULTS = {
   // Temporadas IATA incluidas en el filtro del reporte.
   SEASONS: ['S24', 'S25', 'S26', 'W23', 'W24', 'W25'],
   DECLARED_CAP: 40, // mov/h declarados para SCEL — parámetro operacional, NO de PBI.
+  // Medida de movimientos PROYECTADOS (ARR+DEP). La original 'Qtd T_Proy2' fue
+  // renombrada en el reporte; la vigente es 'Qtd T_Proy' (verificado ~483 mov/día
+  // en SCEL). Si vuelve a cambiar, actualízala aquí o vía env PBI_MEASURE.
+  MEASURE: 'Qtd T_Proy',
 };
 const MESES_PT = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
 export default {
-  async scheduled(event, env, ctx) {
-    ctx.waitUntil(refreshFromPbi(env).catch((e) => console.error('ATFM cron:', e)));
-  },
+  // Solo bajo demanda: se dispara con el botón del Dashboard (GET a este Worker).
+  // NO hay handler `scheduled` a propósito — la actualización nunca es automática.
   async fetch(request, env) {
     const url = new URL(request.url);
     // Preflight CORS (por si un cliente envía cabeceras no simples).
@@ -140,7 +148,7 @@ async function refreshFromPbi(env) {
 
 // Ejecuta la consulta "Tráfico por Horas" para una fecha concreta.
 async function queryPbi(env, y, m, d) {
-  const body = buildBody(torre(env), y, m, d);
+  const body = buildBody(torre(env), y, m, d, env.PBI_MEASURE || DEFAULTS.MEASURE);
   const resp = await fetch(queryUrl(env), {
     method: 'POST',
     headers: {
@@ -160,7 +168,7 @@ async function queryPbi(env, y, m, d) {
 /* Reconstruye el cuerpo `querydata` del panel "Tráfico por Horas" filtrado a una
  * fecha. Fiel a la captura (captured-query.md); solo cambian Dia/Mês/Ano y Torre.
  * CacheKey se regenera como JSON de los Commands (probado: el endpoint lo acepta). */
-function buildBody(torreVal, y, m, d) {
+function buildBody(torreVal, y, m, d, measure) {
   const col = (src, prop) => ({ Column: { Expression: { SourceRef: { Source: src } }, Property: prop } });
   const lit = (v) => ({ Literal: { Value: v } });
   const inCond = (exprs, values) => ({ Condition: { In: { Expressions: exprs, Values: values } } });
@@ -184,7 +192,7 @@ function buildBody(torreVal, y, m, d) {
     Select: [
       { Column: { Expression: { SourceRef: { Source: 'd' } }, Property: 'Operacao' }, Name: 'Dim_Oper.Operacao', NativeReferenceName: 'Operacao' },
       { Column: { Expression: { SourceRef: { Source: 'd1' } }, Property: 'Hora' }, Name: 'Dim_Hora.Hora', NativeReferenceName: 'Hora' },
-      { Measure: { Expression: { SourceRef: { Source: '#' } }, Property: 'Qtd T_Proy2' }, Name: '#Metricas.Qtd T_Proy2', NativeReferenceName: 'Qtd T_Proy2' },
+      { Measure: { Expression: { SourceRef: { Source: '#' } }, Property: measure }, Name: '#Metricas.' + measure, NativeReferenceName: measure },
     ],
     Where: [
       inCond([col('d', 'Operacao')], [[lit("'DEP'")], [lit("'ARR'")]]),
@@ -317,7 +325,7 @@ function validateNode(node) {
  * RTDB write  → PUT /runcast/atfm/<dep>  (reemplaza el nodo: purga días viejos)
  * ------------------------------------------------------------------------- */
 async function writeNode(env, dep, node) {
-  const base = (env.RTDB_URL || '').replace(/\/+$/, '');
+  const base = (env.RTDB_URL || DEFAULTS.RTDB_URL || '').replace(/\/+$/, '');
   if (!base) throw new Error('Falta RTDB_URL');
   const auth = env.RTDB_SECRET ? `?auth=${encodeURIComponent(env.RTDB_SECRET)}` : '';
   const put = await fetch(`${base}/runcast/atfm/${encodeURIComponent(dep)}.json${auth}`, {

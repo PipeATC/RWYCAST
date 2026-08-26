@@ -8,20 +8,13 @@ name: ATFM refresh
 # Es el equivalente sin Cloudflare del Worker cloudflare/atfm/worker.js. La lógica
 # de scrape vive en .github/scripts/atfm-refresh.mjs (misma consulta capturada).
 #
-# NOTA: por CRON no hay gatillo "en vivo" desde el botón del Dashboard; el dato se
-# refresca una vez al día (y a mano desde la pestaña Actions con "Run workflow").
-# Para el botón en vivo, desplegar el Cloudflare Worker.
+# SIN cron y SIN push a propósito: NO es automático. Solo se ejecuta A MANO desde la
+# pestaña Actions ("Run workflow"). El gatillo principal es el BOTÓN del Dashboard,
+# que llama al Cloudflare Worker (cloudflare/atfm/worker.js). Este workflow queda
+# como respaldo manual / herramienta de diagnóstico.
 
 on:
-  schedule:
-    # 09:10 UTC ≈ 05:10/06:10 en Chile (madrugada): el pronóstico del día ya está
-    # disponible y publish-to-web ya refrescó su caché (~1 h de retardo). Ajusta a gusto.
-    - cron: '10 9 * * *'
-  workflow_dispatch:          # permite ejecutarlo a mano desde la pestaña Actions
-  push:
-    paths:
-      - '.github/workflows/atfm.yml'
-      - '.github/scripts/atfm-refresh.mjs'
+  workflow_dispatch:          # único disparador: manual desde la pestaña Actions
 
 permissions:
   contents: read

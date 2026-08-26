@@ -169,7 +169,7 @@ function Dashboard({user,users,atfm}){
     if(sync.state==='loading') return;
     // Con Worker desplegado: consulta server-side y la app se refresca por la suscripción.
     if(hasWorker){
-      setSync({state:'loading',msg:'Solicitud enviada al origen ATFM (Power BI). Obteniendo datos programados…'});
+      setSync({state:'loading',msg:'⟳ Cargando datos ATFM desde Power BI… (esto puede tardar unos segundos)'});
       try{
         const res=await fetch(ATFM_WORKER_URL,{method:'GET',cache:'no-store'});
         let data={}; try{ data=await res.json(); }catch(e){}

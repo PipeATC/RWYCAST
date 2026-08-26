@@ -26,7 +26,7 @@ const EQPATH='runcast/equipos';        // ruta compartida de Equipos en Firebase
 // "Actualizar desde Power BI" del Dashboard hace GET a esta URL → el Worker consulta
 // Power BI server-side y escribe en RTDB → la app se refresca sola por la suscripción.
 // Déjala vacía hasta hacer `wrangler deploy`; pega aquí la URL (p. ej. https://rwycast-atfm.<tu-subdominio>.workers.dev).
-const ATFM_WORKER_URL='';
+const ATFM_WORKER_URL='https://rwycast-atfm.felipe-loyolamejias.workers.dev';
 // Enlace público del reporte ATFM en Power BI (publish-to-web). Se usa como
 // RESPALDO mientras el Worker no esté desplegado: el botón del Dashboard abre este
 // reporte en una pestaña nueva (el navegador no puede volcar los datos al tablero

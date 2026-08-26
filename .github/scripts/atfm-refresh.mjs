@@ -48,6 +48,15 @@ function declaredCap() { const n = parseInt(env.DECLARED_CAP, 10); return Number
 function torre() { return env.PBI_TORRE || 'SCEL'; }
 function resourceKey() { return env.PBI_RESOURCE_KEY || DEFAULTS.RESOURCE_KEY; }
 function queryUrl() { return env.PBI_QUERYDATA_URL || DEFAULTS.QUERYDATA_URL; }
+// Medida de movimientos PROYECTADOS (ARR+DEP). La original 'Qtd T_Proy2' fue
+// renombrada; la actual es 'Qtd T_Proy' (verificado: ~483 mov/día en SCEL, calza
+// con la referencia; 'Qtd T_Proy3' da ~mitad). Se dejan candidatas por si vuelve a
+// cambiar: se prueban en orden hasta que una mapee. Override fijo con PBI_MEASURE.
+function measureCandidates() {
+  if (env.PBI_MEASURE) return [env.PBI_MEASURE];
+  return ['Qtd T_Proy', 'Qtd T_Proy3'];
+}
+const sumHourly = (hourly) => hourly.reduce((a, x) => a + (x.demanda || 0), 0);
 
 // Fecha local de Chile a +offset días → { iso:"YYYY-MM-DD", y, m(1-12), d }.
 function chileParts(offsetDays) {
@@ -66,9 +75,16 @@ async function refreshFromPbi() {
   const wanted = horizonParts();
   const days = {};
   const errors = [];
+
+  // Elige la medida que mapea (probando candidatas contra el 1er día del horizonte).
+  const measure = await pickMeasure(wanted[0], cap, errors);
+  if (!measure) {
+    return { ok: false, msg: 'Ninguna medida candidata devolvió datos mapeables.', tried: measureCandidates(), errors };
+  }
+
   for (const p of wanted) {
     try {
-      const raw = await queryPbi(p.y, p.m, p.d);
+      const raw = await queryPbi(p.y, p.m, p.d, measure);
       const hourly = mapPbiToHourly(raw, cap);
       if (!hourly) { errors.push(`${p.iso}: respuesta sin 24 horas`); continue; }
       const cs = capSplit(cap);
@@ -78,16 +94,132 @@ async function refreshFromPbi() {
     }
   }
   if (!Object.keys(days).length) {
-    return { ok: false, msg: 'No se pudo mapear ningún día del horizonte desde Power BI.', errors };
+    return { ok: false, msg: 'No se pudo mapear ningún día del horizonte desde Power BI.', measure, errors };
   }
-  const node = { source: 'powerbi-ptw-gha', updatedAt: Date.now(), days };
+  const node = { source: 'powerbi-ptw-gha', measure, updatedAt: Date.now(), days };
   await writeNode(dep, node);
-  return { ok: true, mode: 'powerbi', dep, torre: torre(), wroteDays: Object.keys(days), errors: errors.length ? errors : undefined };
+  return { ok: true, mode: 'powerbi', dep, torre: torre(), measure, wroteDays: Object.keys(days), errors: errors.length ? errors : undefined };
 }
 
-// Ejecuta la consulta "Tráfico por Horas" para una fecha concreta.
-async function queryPbi(y, m, d) {
-  const body = buildBody(torre(), y, m, d);
+/* Prueba las medidas candidatas contra un día y devuelve la 1ª que mapea (corta
+ * ahí). Solo si NINGUNA mapea vuelca el diagnóstico (error embebido + esquema del
+ * modelo) para identificar el nuevo nombre. Imprime la suma diaria de la elegida
+ * como verificación de magnitud (referencia SCEL ~430-480 mov/día). */
+async function pickMeasure(p, cap, errors) {
+  const cands = measureCandidates();
+  let lastRaw = null;
+  for (const m of cands) {
+    try {
+      const raw = await queryPbi(p.y, p.m, p.d, m);
+      const hourly = mapPbiToHourly(raw, cap);
+      if (hourly) {
+        console.error(`✔ Medida '${m}' → OK. Suma ${p.iso}: ${sumHourly(hourly)} mov (override con PBI_MEASURE).`);
+        return m;
+      }
+      console.error(`· medida '${m}' → 200 sin datos mapeables`);
+      lastRaw = raw;
+    } catch (e) {
+      const msg = String((e && e.message) || e);
+      console.error(`· medida '${m}' → error: ${msg.slice(0, 160)}`);
+      errors.push(`pickMeasure ${m}: ${msg}`);
+    }
+  }
+  if (lastRaw) await dumpRaw(`${p.iso}/medidas`, lastRaw); // ninguna mapeó → diagnóstico
+  return null;
+}
+
+/* Diagnóstico: cuando una respuesta 200 no mapea, imprime pistas de POR QUÉ para
+ * poder ajustar buildBody()/mapPbiToHourly() sin adivinar. Se llama una sola vez. */
+async function dumpRaw(iso, raw) {
+  console.error(`\n===== DIAGNÓSTICO ATFM (${iso}) — Power BI respondió 200 pero no se pudo mapear =====`);
+  let rawStr; try { rawStr = JSON.stringify(raw); } catch (_) { rawStr = String(raw); }
+  try {
+    // ¿Error semántico embebido? (dataset/report/modelo/tabla cambiaron al republicar)
+    const err = raw && (raw.error || (raw.results && raw.results[0] && raw.results[0].result && raw.results[0].result.error));
+    if (err) console.error('· Error embebido de Power BI:', JSON.stringify(err).slice(0, 800));
+
+    // Caso conocido: la MEDIDA fue renombrada/eliminada. Descubrimos las medidas
+    // reales del modelo y las imprimimos para poder actualizar `Qtd T_Proy2`.
+    if (/CouldNotResolve|invalid Measure reference|Could not resolve model references/i.test(rawStr || '')) {
+      console.error('\n· Parece que la MEDIDA cambió de nombre. Descubriendo medidas del modelo…');
+      await probeMeasures();
+    }
+
+    const ds = raw && raw.results && raw.results[0] && raw.results[0].result && raw.results[0].result.data && raw.results[0].result.data.dsr && raw.results[0].result.data.dsr.DS && raw.results[0].result.data.dsr.DS[0];
+    if (!ds) {
+      console.error('· No existe results[0].result.data.dsr.DS[0] → estructura distinta o error (ver arriba).');
+    } else {
+      const ops = (ds.SH && ds.SH[0] && ds.SH[0].DM1) ? ds.SH[0].DM1.map((o) => o && o.G1) : null;
+      const dm0 = (ds.PH && ds.PH[0] && ds.PH[0].DM0) || null;
+      console.error('· DS[0] presente. Operaciones (SH.DM1):', JSON.stringify(ops));
+      console.error('· Filas por hora (PH.DM0):', dm0 ? dm0.length : dm0);
+      if (dm0 && dm0.length) console.error('· 1ª fila de ejemplo:', JSON.stringify(dm0[0]).slice(0, 400));
+      if ((!dm0 || !dm0.length) && (!ops || !ops.length)) console.error('· Dataset VACÍO: los filtros (fecha/torre/temporada) no calzan con datos → probable cambio de IDs/tabla de fecha al republicar el reporte.');
+    }
+  } catch (e) {
+    console.error('· No se pudo analizar la respuesta:', (e && e.message) || e);
+  }
+  // Volcado crudo truncado para inspección manual (los IDs viven en ApplicationContext del request, no aquí).
+  console.error('· Respuesta cruda (primeros 2500 chars):\n' + (rawStr || '').slice(0, 2500));
+  console.error('===== FIN DIAGNÓSTICO =====\n');
+}
+
+/* Descubre las MEDIDAS reales del modelo publish-to-web vía `conceptualschema` y
+ * las imprime, resaltando las que parezcan de proyección (para reemplazar
+ * `Qtd T_Proy2`). Prueba dos formas de cuerpo (el nombre del campo ha variado
+ * entre versiones del backend). No lanza: es solo diagnóstico. */
+async function probeMeasures() {
+  const backend = queryUrl().replace(/\/public\/reports\/.*$/, '');
+  const url = `${backend}/public/reports/conceptualschema`;
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json;charset=UTF-8',
+        'X-PowerBI-ResourceKey': resourceKey(),
+        'ActivityId': crypto.randomUUID(), 'RequestId': crypto.randomUUID(),
+      },
+      body: JSON.stringify({ modelIds: [DEFAULTS.MODEL_ID], userPreferredLocale: 'en-US' }),
+    });
+    const text = await resp.text();
+    console.error(`  · conceptualschema → HTTP ${resp.status}, ${text.length} bytes`);
+    if (!resp.ok) { console.error('    ' + text.slice(0, 300)); return; }
+
+    let schema; try { schema = JSON.parse(text); } catch (_) { console.error('    (no es JSON)'); return; }
+
+    // En este esquema, una MEDIDA es una Property que trae un objeto `Measure`
+    // (las columnas traen `Column`). Recorremos toda entidad (objeto con Name +
+    // Properties[]) y recogemos "Entidad[Medida]".
+    const found = [];
+    (function walk(node) {
+      if (!node || typeof node !== 'object') return;
+      const entName = node.Name || node.name;
+      const props = node.Properties || node.properties;
+      if (entName && Array.isArray(props)) {
+        for (const pr of props) {
+          if (pr && (pr.Measure || pr.measure)) { const mn = pr.Name || pr.name; if (mn) found.push(`${entName}[${mn}]`); }
+        }
+      }
+      for (const k in node) { const v = node[k]; if (v && typeof v === 'object') walk(v); }
+    })(schema);
+
+    if (!found.length) { console.error('    (No se hallaron medidas; volcado parcial): ' + text.slice(0, 800)); return; }
+
+    const proy = found.filter((f) => /proy|proj|prev|estim|program|forecast|prog/i.test(f));
+    const metricas = found.filter((f) => /Metricas/i.test(f));
+    console.error(`    ► Total de medidas en el modelo: ${found.length}`);
+    console.error('    ► Medidas que parecen de PROYECCIÓN (candidatas a reemplazar Qtd T_Proy2):');
+    console.error('      ' + (proy.length ? proy.join('\n      ') : '(ninguna coincidió)'));
+    console.error('    ► Todas las medidas de #Metricas:');
+    console.error('      ' + (metricas.length ? metricas.join('\n      ') : '(ninguna bajo #Metricas)'));
+  } catch (e) {
+    console.error('  · conceptualschema falló:', (e && e.message) || e);
+  }
+}
+
+// Ejecuta la consulta "Tráfico por Horas" para una fecha y una medida concretas.
+async function queryPbi(y, m, d, measure) {
+  const body = buildBody(torre(), y, m, d, measure);
   const resp = await fetch(queryUrl(), {
     method: 'POST',
     headers: {
@@ -107,7 +239,7 @@ async function queryPbi(y, m, d) {
 /* Reconstruye el cuerpo `querydata` del panel "Tráfico por Horas" filtrado a una
  * fecha. Fiel a la captura (cloudflare/atfm/captured-query.md); solo cambian
  * Dia/Mês/Ano y Torre. CacheKey se regenera como JSON de los Commands. */
-function buildBody(torreVal, y, m, d) {
+function buildBody(torreVal, y, m, d, measure) {
   const col = (src, prop) => ({ Column: { Expression: { SourceRef: { Source: src } }, Property: prop } });
   const lit = (v) => ({ Literal: { Value: v } });
   const inCond = (exprs, values) => ({ Condition: { In: { Expressions: exprs, Values: values } } });
@@ -131,7 +263,7 @@ function buildBody(torreVal, y, m, d) {
     Select: [
       { Column: { Expression: { SourceRef: { Source: 'd' } }, Property: 'Operacao' }, Name: 'Dim_Oper.Operacao', NativeReferenceName: 'Operacao' },
       { Column: { Expression: { SourceRef: { Source: 'd1' } }, Property: 'Hora' }, Name: 'Dim_Hora.Hora', NativeReferenceName: 'Hora' },
-      { Measure: { Expression: { SourceRef: { Source: '#' } }, Property: 'Qtd T_Proy2' }, Name: '#Metricas.Qtd T_Proy2', NativeReferenceName: 'Qtd T_Proy2' },
+      { Measure: { Expression: { SourceRef: { Source: '#' } }, Property: measure }, Name: '#Metricas.' + measure, NativeReferenceName: measure },
     ],
     Where: [
       inCond([col('d', 'Operacao')], [[lit("'DEP'")], [lit("'ARR'")]]),
