@@ -83,7 +83,9 @@ const EQUIPOS_SEED_RAW = {
       _INS('Estación meteorológica', 'Automática', 'OK'),
       _INS('Manga de viento', 'Iluminada', 'OK'),
     ],
-    notams: [],
+    notams: [
+      {numero:'A0912/26', texto:'Trabajos de mantenimiento en calle de rodaje C. Rodaje reducido a un tramo, coordinar con TWR.', desde:'260600', hasta:'262200'},
+    ],
   },
   SCDA: {  // Iquique / Diego Aracena — ILS RWY 19
     items: [
@@ -99,7 +101,9 @@ const EQUIPOS_SEED_RAW = {
       _INS('Estación meteorológica', 'Automática', 'OK'),
       _INS('Manga de viento', 'Iluminada', 'OK'),
     ],
-    notams: [],
+    notams: [
+      {numero:'A1005/26', texto:'ILS RWY 19 sin novedad. PAPI RWY 01 con una unidad de luz inoperativa, senda de planeo utilizable.', desde:'251400', hasta:'PERM'},
+    ],
   },
   SCCF: {  // Calama / El Loa — VOR/RNP
     items: [
@@ -131,7 +135,9 @@ const EQUIPOS_SEED_RAW = {
       _INS('Estación meteorológica', 'Automática', 'OK'),
       _INS('Manga de viento', 'Iluminada', 'OK'),
     ],
-    notams: [],
+    notams: [
+      {numero:'B0421/26', texto:'Actividad de aves en las cercanías del aeródromo, especialmente al amanecer y atardecer. Extremar precauciones.', desde:'260900', hasta:'302359'},
+    ],
   },
   SCAT: {  // Caldera / Desierto de Atacama — ILS RWY 17
     items: [
@@ -160,7 +166,9 @@ const EQUIPOS_SEED_RAW = {
       _INS('Estación meteorológica', 'Automática', 'OK'),
       _INS('Manga de viento', 'Iluminada', 'OK'),
     ],
-    notams: [],
+    notams: [
+      {numero:'C0233/26', texto:'Grúa operando a 1,2 NM del umbral RWY 12, altura máxima 45 M AGL, señalizada e iluminada.', desde:'240700', hasta:'271900'},
+    ],
   },
 
   // ---- CENTRAL ----
@@ -196,7 +204,9 @@ const EQUIPOS_SEED_RAW = {
       _INS('Estación meteorológica', 'Automática', 'OK'),
       _INS('Manga de viento', 'Iluminada', 'OK'),
     ],
-    notams: [],
+    notams: [
+      {numero:'A0778/26', texto:'ATIS RWY 02 fuera de servicio. Información de aeródromo será entregada por TWR en frecuencia.', desde:'261100', hasta:'271100'},
+    ],
   },
   SCQP: {  // Freire / La Araucanía — ILS RWY 01
     items: [
@@ -237,7 +247,9 @@ const EQUIPOS_SEED_RAW = {
       _INS('Grupo electrógeno', 'Respaldo eléctrico', 'OK'),
       _INS('Manga de viento', 'Iluminada', 'OK'),
     ],
-    notams: [],
+    notams: [
+      {numero:'A0640/26', texto:'DME asociado al VOR con funcionamiento intermitente. En observación técnica, verificar distancias con procedimiento alternativo.', desde:'251600', hasta:'281600'},
+    ],
   },
   SCTE: {  // Puerto Montt / El Tepual — ILS RWY 35
     items: [
@@ -256,7 +268,9 @@ const EQUIPOS_SEED_RAW = {
       _INS('Estación meteorológica', 'Automática', 'OK'),
       _INS('Manga de viento', 'Iluminada', 'OK'),
     ],
-    notams: [],
+    notams: [
+      {numero:'A0511/26', texto:'RWY 17/35 con área de trabajo en plataforma. Puestos de estacionamiento 3 y 4 no disponibles.', desde:'260500', hasta:'282300'},
+    ],
   },
   SCPQ: {  // Dalcahue / Mocopulli — ILS RWY 35
     items: [
@@ -291,7 +305,9 @@ const EQUIPOS_SEED_RAW = {
       _INS('Balizaje de pista', 'RWY 10/28', 'MANT', 'Recambio de luminarias programado'),
       _INS('Manga de viento', 'Iluminada', 'OK'),
     ],
-    notams: [],
+    notams: [
+      {numero:'A0388/26', texto:'Balizaje de pista RWY 10/28 en recambio de luminarias. Operaciones nocturnas sujetas a coordinación previa.', desde:'260800', hasta:'290800'},
+    ],
   },
   SCCI: {  // Punta Arenas / Pdte. Carlos Ibáñez del Campo — ILS RWY 25
     items: [
@@ -311,7 +327,9 @@ const EQUIPOS_SEED_RAW = {
       _INS('Faro aeronáutico', 'Faro de aeródromo', 'OK'),
       _INS('Manga de viento', 'Iluminada', 'OK'),
     ],
-    notams: [],
+    notams: [
+      {numero:'A0290/26', texto:'Viento fuerte en superficie previsto, ráfagas sobre 40 KT. Evaluar operaciones según limitaciones de aeronave.', desde:'261200', hasta:'270600'},
+    ],
   },
 };
 
