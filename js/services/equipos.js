@@ -61,10 +61,28 @@ function eqNormalize(raw){
       desde:x.desde||'', hasta:x.hasta||'', updatedAt:x.updatedAt||0})),
     updatedAt:raw.updatedAt||0, updatedBy:raw.updatedBy||''};
 }
+// ¿Trae el documento crudo algún contenido real publicado por la unidad?
+// (un nodo vacío en la BD no debe tapar la semilla de demostración)
+function eqHasContent(raw){
+  if(!raw||typeof raw!=='object') return false;
+  const items=Array.isArray(raw.items)?raw.items:[];
+  const notams=Array.isArray(raw.notams)?raw.notams:[];
+  return items.length>0 || notams.length>0;
+}
 // Normaliza el nodo completo {icao:{…}} a {icao: docNormalizado}.
+// Respaldo: para las unidades sin datos en la BD se usa la semilla de
+// demostración (js/data/equipos-seed.js). Cuando la unidad publica su
+// equipamiento real, ese documento reemplaza por completo a la semilla.
 function eqNormalizeAll(raw){
   const out={};
-  if(raw&&typeof raw==='object') Object.keys(raw).forEach(icao=>{ out[icao]=eqNormalize(raw[icao]); });
+  const hasSeed=typeof equiposSeedIcaos==='function';
+  // 1) Semilla de demostración como base (respaldo/ejemplo).
+  if(hasSeed) equiposSeedIcaos().forEach(icao=>{ const d=equiposSeedDoc(icao); if(d) out[icao]=eqNormalize(d); });
+  // 2) Datos reales de la BD: sobrescriben la semilla del aeródromo que los tenga.
+  if(raw&&typeof raw==='object') Object.keys(raw).forEach(icao=>{
+    if(eqHasContent(raw[icao])) out[icao]=eqNormalize(raw[icao]);
+    else if(!out[icao]) out[icao]=eqNormalize(raw[icao]);
+  });
   return out;
 }
 
